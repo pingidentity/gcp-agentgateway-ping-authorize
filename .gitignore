@@ -1,0 +1,21 @@
+# GitHub/Copilot/Claude config
+.github/
+.claude/
+
+# Local build artifacts
+hello-api/hello-api
+stripe-mcp/stripe-mcp
+ping-authz-shim/ping-authz-shim
+
+# OS/editor noise
+.DS_Store
+
+# Common runtime/test artifacts
+*.log
+coverage.out
+*.bak
+
+# Secrets
+.env
+
+responses/
