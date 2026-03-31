@@ -52,7 +52,9 @@ func newRouter(mcpServer *server.StreamableHTTPServer) http.Handler {
 			return
 		}
 
-		r = r.WithContext(context.WithValue(r.Context(), ctxKeyCallerEmail, email))
+		ctx := context.WithValue(r.Context(), ctxKeyCallerEmail, email)
+		ctx = context.WithValue(ctx, ctxKeyAccessToken, authHeader)
+		r = r.WithContext(ctx)
 		mcpServer.ServeHTTP(w, r)
 	})
 }
