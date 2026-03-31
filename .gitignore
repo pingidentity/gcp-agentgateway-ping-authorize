@@ -1,11 +1,15 @@
 # GitHub/Copilot/Claude config
-.github/
-.claude/
+.github/copilot-instructions.md
 
 # Local build artifacts
 hello-api/hello-api
 stripe-mcp/stripe-mcp
 ping-authz-shim/ping-authz-shim
+
+# Node
+node_modules/
+dist/
+ping-chat-ui-storefront/deploy.sh
 
 # OS/editor noise
 .DS_Store
@@ -17,5 +21,3 @@ coverage.out
 
 # Secrets
 .env
-
-responses/
