@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -14,9 +15,9 @@ import (
 )
 
 // PingAuthzShim is the ext_proc gRPC server. The load balancer / agent gateway calls this for
-// every intercepted request, and forwards the request headers as attributes to PingAuthorize
-// to get an allow/deny decision to send back to the load balancer / agent gateway before the
-// request reaches the downstream mcp server.
+// every intercepted request. It inspects both headers and body to extract policy attributes
+// (bearer token, MCP tool name, purchase amount) and forwards them to PingAuthorize for an
+// allow/deny decision before the request reaches the downstream MCP server.
 type PingAuthzShim struct {
 	httpClient       *http.Client
 	pingAuthorizeURL string
@@ -25,8 +26,6 @@ type PingAuthzShim struct {
 }
 
 // NewPingAuthzShim initializes the ext_proc shim from environment configuration.
-// It wires up the HTTP client used to call PingAuthorize and the MCP server,
-// with optional TLS verification bypass for development environments.
 func NewPingAuthzShim() *PingAuthzShim {
 	return &PingAuthzShim{
 		pingAuthorizeURL: strings.TrimSpace(os.Getenv("PING_AUTHORIZE_URL")),
@@ -39,15 +38,18 @@ func NewPingAuthzShim() *PingAuthzShim {
 	}
 }
 
-// Process handles the bidirectional gRPC stream between Envoy and this ext_proc
-// shim. Envoy emits a message per processing phase (request headers, body, etc.)
-// and blocks until the shim responds for each phase it owns.
+// Process handles the bidirectional gRPC stream between Envoy and this ext_proc shim.
 //
-// Only the RequestHeaders phase is intercepted. A deny decision short-circuits
-// the entire request — Envoy returns an immediate error response to the client
-// and the downstream service never sees the request. Unhandled phases are ignored,
-// allowing Envoy to proceed with its default behavior.
+// Two phases are intercepted:
+//  1. RequestHeaders — fast-path decisions (passthrough, 401, 404). For authenticated
+//     /mcp requests, headers are saved and body processing is requested.
+//  2. RequestBody — parses the MCP JSON-RPC payload to extract tool_name and
+//     purchase_amount, then calls PingAuthorize with the full attribute set.
 func (s *PingAuthzShim) Process(stream extproc.ExternalProcessor_ProcessServer) error {
+	// Per-stream state: headers from phase 1 are used in phase 2.
+	var savedHeaders map[string]string
+	var traceID string
+
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
@@ -58,25 +60,31 @@ func (s *PingAuthzShim) Process(stream extproc.ExternalProcessor_ProcessServer) 
 			return err
 		}
 
-		reqHeaders := msg.GetRequestHeaders()
-		if reqHeaders == nil {
+		// Phase 1: Request Headers
+		if reqHeaders := msg.GetRequestHeaders(); reqHeaders != nil {
+			traceID = fmt.Sprintf("pa-%d", time.Now().UnixNano())
+			savedHeaders = flattenEnvoyHeaders(reqHeaders)
+			resp := s.evaluateHeaders(traceID, savedHeaders)
+			if err := stream.Send(resp); err != nil {
+				return err
+			}
 			continue
 		}
 
-		if err := stream.Send(s.evaluateRequest(reqHeaders)); err != nil {
-			return err
+		// Phase 2: Request Body (only reached for authenticated /mcp requests)
+		if reqBody := msg.GetRequestBody(); reqBody != nil {
+			resp := s.evaluateBody(traceID, savedHeaders, reqBody.GetBody())
+			if err := stream.Send(resp); err != nil {
+				return err
+			}
+			continue
 		}
 	}
 }
 
-// evaluateRequest evaluates a single inbound request and returns one of:
-//   - 401 with WWW-Authenticate directing the agent to protected resource metadata (/.well-known/oauth-protected-resource) if no bearer token is present
-//   - Passthrough for public OAuth endpoints (/.well-known/**) that agents need to access without a token
-//   - CONTINUE (allow) or 403 (deny) based on the PingAuthorize policy decision
-func (s *PingAuthzShim) evaluateRequest(headers *extproc.HttpHeaders) *extproc.ProcessingResponse {
-	traceID := fmt.Sprintf("pa-%d", time.Now().UnixNano())
-	requestHeaders := flattenEnvoyHeaders(headers)
-	path := requestHeaders[":path"]
+// evaluateHeaders handles fast-path decisions and requests body processing for /mcp.
+func (s *PingAuthzShim) evaluateHeaders(traceID string, headers map[string]string) *extproc.ProcessingResponse {
+	path := headers[":path"]
 
 	// Discovery endpoints are always allowed — agents need them to find the authorization server.
 	if strings.HasPrefix(path, "/.well-known") {
@@ -84,7 +92,6 @@ func (s *PingAuthzShim) evaluateRequest(headers *extproc.HttpHeaders) *extproc.P
 		return buildPassthroughResponse()
 	}
 
-	// Only /.well-known/** and /mcp are valid paths.
 	if path != "/mcp" {
 		log.Printf("[%s] unknown path=%q, returning 404", traceID, path)
 		return buildRejectResponse(
@@ -93,8 +100,8 @@ func (s *PingAuthzShim) evaluateRequest(headers *extproc.HttpHeaders) *extproc.P
 		)
 	}
 
-	// No bearer token → 401 so the agent can discover and start the OAuth flow to get a token.
-	if ExtractBearerToken(requestHeaders["authorization"]) == "" {
+	// No bearer token → 401 so the agent can discover and start the OAuth flow.
+	if ExtractBearerToken(headers["authorization"]) == "" {
 		log.Printf("[%s] no bearer token, returning 401", traceID)
 		return buildRejectResponse(
 			typev3.StatusCode_Unauthorized, s.getWWWAuthenticate(), "",
@@ -102,31 +109,77 @@ func (s *PingAuthzShim) evaluateRequest(headers *extproc.HttpHeaders) *extproc.P
 		)
 	}
 
-	// Forward all headers as policy attributes to PingAuthorize and receive a decision.
-	req := pingAuthorizeRequest{Attributes: requestHeaders}
+	// Token present on /mcp — request the body so we can extract tool name + arguments.
+	log.Printf("[%s] authenticated request to /mcp, requesting body", traceID)
+	return buildRequestBodyResponse()
+}
+
+// mcpJsonRpcRequest represents the relevant fields of an MCP JSON-RPC request.
+type mcpJsonRpcRequest struct {
+	Method string `json:"method"`
+	Params struct {
+		Name      string                 `json:"name"`
+		Arguments map[string]interface{} `json:"arguments"`
+	} `json:"params"`
+}
+
+// evaluateBody parses the MCP JSON-RPC body, extracts tool_name and purchase_amount,
+// then calls PingAuthorize with the complete attribute set.
+func (s *PingAuthzShim) evaluateBody(traceID string, headers map[string]string, body []byte) *extproc.ProcessingResponse {
+	// Start with all request headers as attributes.
+	attributes := make(map[string]string, len(headers)+3)
+	for k, v := range headers {
+		attributes[k] = v
+	}
+
+	// Parse the MCP JSON-RPC payload and extract tool name + arguments for policy evaluation.
+	var rpc mcpJsonRpcRequest
+	if err := json.Unmarshal(body, &rpc); err == nil && rpc.Method == "tools/call" {
+		attributes["mcp_tool_name"] = rpc.Params.Name
+
+		// Extract purchase-related arguments (used by create_stripe_payment_intent).
+		if productID, ok := rpc.Params.Arguments["product_id"]; ok {
+			attributes["mcp_product_id"] = fmt.Sprintf("%v", productID)
+		}
+		if quantity, ok := rpc.Params.Arguments["quantity"]; ok {
+			attributes["mcp_purchase_quantity"] = fmt.Sprintf("%v", quantity)
+		} else {
+			attributes["mcp_purchase_quantity"] = "1"
+		}
+	}
+
+	// Log the attributes being sent to PingAuthorize for observability.
+	token := ExtractBearerToken(attributes["authorization"])
+	toolName := attributes["mcp_tool_name"]
+	productID := attributes["mcp_product_id"]
+	quantity := attributes["mcp_purchase_quantity"]
+	log.Printf("[%s] → PingAuthorize attributes:", traceID)
+	log.Printf("[%s]   access_token=%s", traceID, token)
+	log.Printf("[%s]   mcp_tool_name=%s", traceID, toolName)
+	log.Printf("[%s]   mcp_product_id=%s mcp_purchase_quantity=%s", traceID, productID, quantity)
+
+	// Call PingAuthorize with all attributes for a policy decision.
+	req := pingAuthorizeRequest{Attributes: attributes}
 	allowed, decision, err := s.callPingAuthorize(req)
 	if err != nil {
 		log.Printf("[%s] policy call failed: %v", traceID, err)
-		return buildRejectResponse(
+		return buildRejectBodyResponse(
 			typev3.StatusCode_Forbidden, s.getWWWAuthenticate(), traceID,
 			`{"error":"access_denied","decision_id":"`+traceID+`","source":"ping-authorize"}`,
 		)
 	}
-	log.Printf("[%s] path=%q decision=%s", traceID, path, decision.Decision)
+	log.Printf("[%s] ← PingAuthorize decision=%s tool=%q", traceID, decision.Decision, toolName)
 
-	// Return an allow or deny response based on the policy decision. Include the
-	// www-authenticate header to guide the agent where to get a valid token.
 	if allowed {
-		return buildAllowResponse(traceID)
+		return buildAllowBodyResponse(traceID)
 	}
-	return buildRejectResponse(
+	return buildRejectBodyResponse(
 		typev3.StatusCode_Forbidden, s.getWWWAuthenticate(), traceID,
 		`{"error":"access_denied","decision":"deny","decision_id":"`+traceID+`","source":"ping-authorize"}`,
 	)
 }
 
-// getWWWAuthenticate returns the WWW-Authenticate header value for reject responses,
-// pointing MCP clients to the protected resource metadata for OAuth discovery.
+// getWWWAuthenticate returns the WWW-Authenticate header value for reject responses.
 func (s *PingAuthzShim) getWWWAuthenticate() string {
 	return fmt.Sprintf(`Bearer resource_metadata="%s/.well-known/oauth-protected-resource", scope="%s"`, s.mcpServerURL, s.scopes)
 }

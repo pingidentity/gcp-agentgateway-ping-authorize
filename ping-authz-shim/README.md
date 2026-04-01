@@ -3,7 +3,7 @@
 Envoy [ext_proc](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter) shim that sits between GCLB and your MCP server. Every request gets its headers evaluated by [PingAuthorize](https://docs.pingidentity.com/pingauthorize/11.0/pingauthorize_policy_administration_guide/paz_policy_management.html) before it ever reaches the downstream MCP server (if permitted to do so).
 
 ```
-Client → GCLB Auth Extension → ping-authz-shim → PingAuthorize → allow / deny
+Client → GCLB Traffic Extension → ping-authz-shim → PingAuthorize → allow / deny
 ```
 
 ## Configuration

@@ -16,7 +16,7 @@ substitutions:
   _SERVICE_NAME: ping-authz-shim
   _PING_AUTHORIZE_URL: https://34.41.151.105:7443/governance-engine
   _MCP_SERVER_URL: https://ping-gcp-agent-gateway.com
-  _SKIP_TLS_VERIFY: "false"
+  _SKIP_TLS_VERIFY: "true"
   _OAUTH_SCOPES: "openid profile email stripe_mcp:invoke"
 
 steps:

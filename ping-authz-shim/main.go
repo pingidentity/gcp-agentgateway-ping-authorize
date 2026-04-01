@@ -1,7 +1,7 @@
 // Package main is the entrypoint for the PingAuthorize ext_proc shim.
 //
 // This service implements Envoy's ExternalProcessor gRPC interface, allowing
-// Google Cloud Load Balancer / Agent Gateway Auth Extensions to intercept
+// Google Cloud Load Balancer / Agent Gateway Traffic Extensions to intercept
 // HTTP requests and forward them here for an authorization decision from
 // PingAuthorize. Allowed requests are passed through to the downstream
 // MCP server; denied requests receive an immediate HTTP error response.
@@ -35,7 +35,7 @@ func main() {
 	authzShim := NewPingAuthzShim()
 
 	// Register the authz service against Envoy's ExternalProcessor interface.
-	// GCLB Auth Extensions will invoke Process() on this service for each
+	// GCLB Traffic Extensions will invoke Process() on this service for each
 	// intercepted request.
 	extproc.RegisterExternalProcessorServer(s, authzShim)
 

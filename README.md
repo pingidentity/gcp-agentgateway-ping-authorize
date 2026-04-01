@@ -14,7 +14,7 @@ The sample MCP server wraps the [Stripe API](https://docs.stripe.com/api) and ru
 ![](_images/subject_token_issuance_flow.svg)
 
 1. The agent sends a request to the Agent Gateway without an access token
-2. The Agent Gateway invokes `ping-authz-shim` via an Auth Extension callout
+2. The Agent Gateway invokes `ping-authz-shim` via a Traffic Extension callout
 3. The shim rejects the request with `401 Unauthorized` and a `WWW-Authenticate` header containing the protected resource metadata URL and required scopes
 4. The agent discovers the authorization server by fetching `/.well-known/oauth-protected-resource` ([RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)), which the shim passes through to the MCP server
 5. The agent dynamically registers a client ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) and completes an OAuth 2.0 authorization code flow with PKCE ([RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636)) against [PingOne AIC](https://www.pingidentity.com/en/platform/pingone-advanced-identity-cloud.html) to obtain an access token
@@ -24,7 +24,7 @@ The sample MCP server wraps the [Stripe API](https://docs.stripe.com/api) and ru
 ![](_images/subject_token_usage_flow.svg)
 
 1. The agent sends a request to the Agent Gateway with an access token
-2. The Agent Gateway invokes `ping-authz-shim` via an Auth Extension callout
+2. The Agent Gateway invokes `ping-authz-shim` via a Traffic Extension callout
 3. The shim extracts the bearer token and request context, then sends a decision request to PingAuthorize
 4. PingAuthorize evaluates the policy and returns allow or deny — rejected requests never reach the MCP server
 5. Permitted requests are forwarded to `stripe-mcp`, which executes the requested tool on the user's behalf
@@ -64,12 +64,12 @@ The sample MCP server wraps the [Stripe API](https://docs.stripe.com/api) and ru
 
 ## Deployment
 
-Both services run on **Cloud Run** behind a **GCP Agent Gateway** with Auth Extensions enabled.
+Both services run on **Cloud Run** behind a **GCP Agent Gateway** with Traffic Extensions enabled.
 
 1. Deploy `ping-authz-shim` and `stripe-mcp` to Cloud Run
 2. Create serverless NEGs and backend services for each
 3. Provision the Agent Gateway with a URL map, SSL certificate, and forwarding rule
-4. Create an Auth Extension callout pointing to the shim's backend service
-5. Attach the Auth Extension to the Agent Gateway's URL map
+4. Create a Traffic Extension callout pointing to the shim's backend service
+5. Attach the Traffic Extension to the Agent Gateway's URL map
 
 Both services are configured with `--ingress internal-and-cloud-load-balancing` so they are only reachable through the Agent Gateway — direct requests from the public internet are blocked.
