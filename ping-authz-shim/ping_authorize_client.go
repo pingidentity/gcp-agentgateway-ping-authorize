@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// pingAuthorizeRequest captures the request attributes sent to PingAuthorize.
+// pingAuthorizeRequest is the payload sent to PingAuthorize.
 type pingAuthorizeRequest struct {
 	Attributes map[string]string `json:"attributes"`
 }

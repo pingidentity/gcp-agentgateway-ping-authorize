@@ -93,7 +93,6 @@ func (s *PingAuthzShim) evaluateHeaders(traceID string, headers map[string]strin
 	}
 
 	if path != "/mcp" {
-		log.Printf("[%s] unknown path=%q, returning 404", traceID, path)
 		return buildRejectResponse(
 			typev3.StatusCode_NotFound, "", "",
 			`{"error":"not_found","error_description":"Unknown path"}`,
@@ -134,29 +133,56 @@ func (s *PingAuthzShim) evaluateBody(traceID string, headers map[string]string, 
 
 	// Parse the MCP JSON-RPC payload and extract tool name + arguments for policy evaluation.
 	var rpc mcpJsonRpcRequest
-	if err := json.Unmarshal(body, &rpc); err == nil && rpc.Method == "tools/call" {
-		attributes["mcp_tool_name"] = rpc.Params.Name
+	if err := json.Unmarshal(body, &rpc); err == nil {
+		attributes["mcp_method"] = rpc.Method
 
-		// Extract purchase-related arguments (used by create_stripe_payment_intent).
-		if productID, ok := rpc.Params.Arguments["product_id"]; ok {
-			attributes["mcp_product_id"] = fmt.Sprintf("%v", productID)
-		}
-		if quantity, ok := rpc.Params.Arguments["quantity"]; ok {
-			attributes["mcp_purchase_quantity"] = fmt.Sprintf("%v", quantity)
-		} else {
-			attributes["mcp_purchase_quantity"] = "1"
+		if rpc.Method == "tools/call" {
+			attributes["mcp_tool_name"] = rpc.Params.Name
+
+			// Only extract purchase args for the payment intent tool.
+			if rpc.Params.Name == "create_stripe_payment_intent" {
+				if productID, ok := rpc.Params.Arguments["product_id"]; ok {
+					attributes["mcp_product_id"] = fmt.Sprintf("%v", productID)
+				}
+				if quantity, ok := rpc.Params.Arguments["quantity"]; ok {
+					attributes["mcp_purchase_quantity"] = fmt.Sprintf("%v", quantity)
+				}
+				if totalPrice, ok := rpc.Params.Arguments["total_price"]; ok {
+					attributes["mcp_total_price"] = fmt.Sprintf("%v", totalPrice)
+				}
+				if currency, ok := rpc.Params.Arguments["currency"]; ok {
+					attributes["mcp_currency"] = fmt.Sprintf("%v", currency)
+				}
+			}
 		}
 	}
 
-	// Log the attributes being sent to PingAuthorize for observability.
+	// Replace the raw authorization header with just the bearer token.
 	token := ExtractBearerToken(attributes["authorization"])
-	toolName := attributes["mcp_tool_name"]
-	productID := attributes["mcp_product_id"]
-	quantity := attributes["mcp_purchase_quantity"]
+	delete(attributes, "authorization")
+	if token != "" {
+		attributes["access_token"] = token
+	}
+
+	// Log the attributes being sent to PingAuthorize for observability.
+	mcpMethod := valueOrNA(attributes["mcp_method"])
+	toolName := valueOrNA(attributes["mcp_tool_name"])
 	log.Printf("[%s] → PingAuthorize attributes:", traceID)
 	log.Printf("[%s]   access_token=%s", traceID, token)
-	log.Printf("[%s]   mcp_tool_name=%s", traceID, toolName)
-	log.Printf("[%s]   mcp_product_id=%s mcp_purchase_quantity=%s", traceID, productID, quantity)
+	log.Printf("[%s]   mcp_method=%s mcp_tool_name=%s", traceID, mcpMethod, toolName)
+	// Log purchase-specific attributes only when present.
+	if v, ok := attributes["mcp_product_id"]; ok {
+		log.Printf("[%s]   mcp_product_id=%s", traceID, v)
+	}
+	if v, ok := attributes["mcp_purchase_quantity"]; ok {
+		log.Printf("[%s]   mcp_purchase_quantity=%s", traceID, v)
+	}
+	if v, ok := attributes["mcp_total_price"]; ok {
+		log.Printf("[%s]   mcp_total_price=%s", traceID, v)
+	}
+	if v, ok := attributes["mcp_currency"]; ok {
+		log.Printf("[%s]   mcp_currency=%s", traceID, v)
+	}
 
 	// Call PingAuthorize with all attributes for a policy decision.
 	req := pingAuthorizeRequest{Attributes: attributes}

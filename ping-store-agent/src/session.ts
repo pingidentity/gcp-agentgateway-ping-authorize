@@ -1,30 +1,29 @@
 /**
  * Agent Session Management
  *
- * Maintains per-user agent sessions keyed by subject token. Each session holds
- * a Strands agent instance (preserving conversation history) and the expiry time
- * of the delegated token. When a session expires, a new token exchange is performed
- * and a fresh agent is created.
+ * Maintains per-user delegated tokens keyed by subject token. When a token
+ * expires, a new token exchange is performed. A fresh agent is created for
+ * each request to avoid MCP transport reuse issues.
  */
 
 import type { Agent } from "@strands-agents/sdk";
 import { exchangeForDelegatedToken } from "./token-exchange.js";
 import { createStoreAgent } from "./agent.js";
 
-interface AgentSession {
-  agent: Agent;
+interface TokenSession {
+  delegatedToken: string;
   expiresAt: number;
 }
 
-const sessions = new Map<string, AgentSession>();
+const sessions = new Map<string, TokenSession>();
 
 function sessionKey(token: string): string {
   return token.slice(0, 32);
 }
 
 /**
- * Returns an active agent session for the user, creating one if needed.
- * Performs token exchange on first call or when the delegated token expires.
+ * Returns an agent for the user, creating a fresh one each request.
+ * The delegated token is cached and reused until it expires.
  */
 export async function getOrCreateSession(subjectToken: string): Promise<Agent> {
   const key = sessionKey(subjectToken);
@@ -32,10 +31,9 @@ export async function getOrCreateSession(subjectToken: string): Promise<Agent> {
 
   if (!session || Date.now() > session.expiresAt) {
     const { access_token, expires_in } = await exchangeForDelegatedToken(subjectToken);
-    const agent = await createStoreAgent(access_token);
-    session = { agent, expiresAt: Date.now() + expires_in * 1000 };
+    session = { delegatedToken: access_token, expiresAt: Date.now() + expires_in * 1000 };
     sessions.set(key, session);
   }
 
-  return session.agent;
+  return createStoreAgent(session.delegatedToken);
 }

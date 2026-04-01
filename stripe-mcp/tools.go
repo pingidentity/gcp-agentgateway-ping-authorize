@@ -120,6 +120,14 @@ func createStripePaymentIntentTool() (mcp.Tool, server.ToolHandlerFunc) {
 		mcp.WithNumber("quantity",
 			mcp.Description("Number of units to purchase (default 1)."),
 		),
+		mcp.WithNumber("total_price",
+			mcp.Required(),
+			mcp.Description("Total price for the purchase (unit price × quantity). The agent must calculate this before calling."),
+		),
+		mcp.WithString("currency",
+			mcp.Required(),
+			mcp.Description("Three-letter ISO 4217 currency code (e.g. \"usd\", \"eur\")."),
+		),
 	)
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		customerEmail, ok := ctx.Value(ctxKeyCallerEmail).(string)
@@ -135,7 +143,7 @@ func createStripePaymentIntentTool() (mcp.Tool, server.ToolHandlerFunc) {
 		if quantity < 1 {
 			quantity = 1
 		}
-		log.Printf("tool=create_stripe_payment_intent — email=%s product_id=%s quantity=%d", customerEmail, productID, quantity)
+		log.Printf("tool=create_stripe_payment_intent — email=%s product_id=%s quantity=%d total_price=%.2f", customerEmail, productID, quantity, req.GetFloat("total_price", 0))
 
 		customer, err := lookupCustomerByEmail(customerEmail)
 		if err != nil {

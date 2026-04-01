@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -48,6 +49,7 @@ func handleOAuthDiscovery(w http.ResponseWriter) {
 // Stripe customer record.
 func resolveCallerEmail(bearerToken string) (string, error) {
 	url := pingOneAicIssuer + "/userinfo"
+	log.Printf("resolveCallerEmail: calling %s with token=%s", url, bearerToken)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -62,6 +64,7 @@ func resolveCallerEmail(bearerToken string) (string, error) {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
+	log.Printf("resolveCallerEmail: status=%d body=%s", resp.StatusCode, string(body))
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("userinfo returned %d: %s", resp.StatusCode, body)
 	}
@@ -76,5 +79,6 @@ func resolveCallerEmail(bearerToken string) (string, error) {
 		return "", fmt.Errorf("no email claim in userinfo response: %v", claims)
 	}
 
+	log.Printf("resolveCallerEmail: resolved email=%s", email)
 	return email, nil
 }

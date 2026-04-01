@@ -69,3 +69,11 @@ func resolveHeaderValue(h *corev3.HeaderValue) string {
 	}
 	return string(h.GetRawValue())
 }
+
+// valueOrNA returns "n/a" for empty strings, used for cleaner log output.
+func valueOrNA(s string) string {
+	if s == "" {
+		return "n/a"
+	}
+	return s
+}
