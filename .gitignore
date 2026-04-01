@@ -10,6 +10,7 @@ ping-authz-shim/ping-authz-shim
 node_modules/
 dist/
 ping-chat-ui-storefront/deploy.sh
+ping-store-agent/deploy.sh
 
 # OS/editor noise
 .DS_Store
