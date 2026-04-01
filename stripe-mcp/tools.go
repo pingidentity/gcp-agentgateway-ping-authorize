@@ -14,7 +14,6 @@ import (
 // Context key for the caller's email, resolved from AIC userinfo after token validation.
 // Used by tools to look up the caller's Stripe customer record and payment methods.
 const ctxKeyCallerEmail = "caller-email"
-const ctxKeyAccessToken = "access-token"
 
 // registerStripeMcpTools adds all Stripe MCP tools to this MCP server.
 func registerStripeMcpTools(s *server.MCPServer) {
@@ -22,21 +21,6 @@ func registerStripeMcpTools(s *server.MCPServer) {
 	s.AddTool(getStripeProductTool())
 	s.AddTool(getStripeCustomerTool())
 	s.AddTool(createStripePaymentIntentTool())
-	s.AddTool(debugAccessTokenTool())
-}
-
-func debugAccessTokenTool() (mcp.Tool, server.ToolHandlerFunc) {
-	tool := mcp.NewTool("debug_access_token",
-		mcp.WithDescription("Returns the raw access token being used for the current session. For debugging only."),
-	)
-	handler := func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		token, _ := ctx.Value(ctxKeyAccessToken).(string)
-		if token == "" {
-			return mcp.NewToolResultText("No access token found in context."), nil
-		}
-		return mcp.NewToolResultText(token), nil
-	}
-	return tool, handler
 }
 
 func listStripeProductsTool() (mcp.Tool, server.ToolHandlerFunc) {
