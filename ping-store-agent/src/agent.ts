@@ -1,4 +1,4 @@
-import { Agent, McpClient } from "@strands-agents/sdk";
+import { Agent, McpClient, Message } from "@strands-agents/sdk";
 import { OpenAIModel } from "@strands-agents/sdk/openai";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
@@ -13,8 +13,9 @@ Be concise and friendly.`;
  *
  * The exchanged token (with sub + act claims) is passed as a Bearer token
  * so PingOne Authorize at the gateway can enforce per-user, per-agent policies.
+ * Optionally seeded with prior conversation history for multi-turn support.
  */
-export async function createStoreAgent(delegatedToken: string): Promise<Agent> {
+export async function createStoreAgent(delegatedToken: string, messages?: Message[]): Promise<Agent> {
   const gatewayUrl = process.env.AGENT_GATEWAY_URL;
   if (!gatewayUrl) throw new Error("Missing required env var: AGENT_GATEWAY_URL");
 
@@ -37,13 +38,14 @@ export async function createStoreAgent(delegatedToken: string): Promise<Agent> {
 
   const model = new OpenAIModel({
     apiKey,
-    modelId: "gpt-4o",
+    modelId: "gpt-5.4",
   });
 
   const agent = new Agent({
     model,
     tools: [mcpClient],
     systemPrompt: SYSTEM_PROMPT,
+    ...(messages?.length ? { messages } : {}),
   });
 
   return agent;

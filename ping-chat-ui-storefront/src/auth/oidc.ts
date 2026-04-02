@@ -74,6 +74,7 @@ export async function login(): Promise<void> {
     scope: SCOPES,
     code_challenge: challenge,
     code_challenge_method: 'S256',
+    prompt: 'login',
   });
 
   window.location.href = `${AIC_ISSUER}/authorize?${params}`;
@@ -141,6 +142,8 @@ export function getUserInfo(): IdTokenClaims | null {
 }
 
 export function logout(): void {
+  const idToken = sessionStorage.getItem(STORAGE_KEYS.idToken);
   Object.values(STORAGE_KEYS).forEach((k) => sessionStorage.removeItem(k));
-  window.location.href = '/';
+  const postLogoutUri = encodeURIComponent(window.location.origin);
+  window.location.href = `${AIC_ISSUER}/connect/endSession?id_token_hint=${idToken ?? ''}&post_logout_redirect_uri=${postLogoutUri}`;
 }

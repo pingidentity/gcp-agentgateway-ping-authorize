@@ -122,7 +122,7 @@ func createStripePaymentIntentTool() (mcp.Tool, server.ToolHandlerFunc) {
 		),
 		mcp.WithNumber("total_price",
 			mcp.Required(),
-			mcp.Description("Total price for the purchase (unit price × quantity). The agent must calculate this before calling."),
+			mcp.Description("Total price in dollars for the purchase (unit price × quantity). For example, if a product costs $100.00 and quantity is 1, total_price is 100."),
 		),
 		mcp.WithString("currency",
 			mcp.Required(),

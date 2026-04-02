@@ -9,7 +9,7 @@
 import express from "express";
 import cors from "cors";
 import { validateSubjectToken } from "./auth.js";
-import { getOrCreateSession } from "./session.js";
+import { getOrCreateSession, saveConversation } from "./session.js";
 
 interface ChatRequest {
   message: string;
@@ -42,6 +42,7 @@ app.post("/chat", async (req, res) => {
 
     const agent = await getOrCreateSession(subjectToken);
     const result = await agent.invoke(message);
+    saveConversation(subjectToken, agent.messages);
 
     // Extract text from Strands agent result (may be string or content block array)
     let text: string;

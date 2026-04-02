@@ -1,39 +1,35 @@
 /**
  * Agent Session Management
  *
- * Maintains per-user delegated tokens keyed by subject token. When a token
- * expires, a new token exchange is performed. A fresh agent is created for
- * each request to avoid MCP transport reuse issues.
+ * Maintains per-user conversation history. A fresh agent and delegated token
+ * are created for every request (no token caching), but conversation history
+ * is preserved so the agent remembers prior messages.
  */
 
-import type { Agent } from "@strands-agents/sdk";
+import { Agent, Message } from "@strands-agents/sdk";
 import { exchangeForDelegatedToken } from "./token-exchange.js";
 import { createStoreAgent } from "./agent.js";
 
-interface TokenSession {
-  delegatedToken: string;
-  expiresAt: number;
-}
-
-const sessions = new Map<string, TokenSession>();
+const conversationHistory = new Map<string, Message[]>();
 
 function sessionKey(token: string): string {
+  // Key by user identity (sub claim) extracted from the first part of the token
   return token.slice(0, 32);
 }
 
 /**
- * Returns an agent for the user, creating a fresh one each request.
- * The delegated token is cached and reused until it expires.
+ * Performs a fresh token exchange, creates a new agent seeded with
+ * the user's conversation history, and returns it.
  */
 export async function getOrCreateSession(subjectToken: string): Promise<Agent> {
   const key = sessionKey(subjectToken);
-  let session = sessions.get(key);
+  const { access_token } = await exchangeForDelegatedToken(subjectToken);
+  const history = conversationHistory.get(key) ?? [];
+  const agent = await createStoreAgent(access_token, history);
+  return agent;
+}
 
-  if (!session || Date.now() > session.expiresAt) {
-    const { access_token, expires_in } = await exchangeForDelegatedToken(subjectToken);
-    session = { delegatedToken: access_token, expiresAt: Date.now() + expires_in * 1000 };
-    sessions.set(key, session);
-  }
-
-  return createStoreAgent(session.delegatedToken);
+/** Persist the agent's conversation history for the next request. */
+export function saveConversation(subjectToken: string, messages: Message[]): void {
+  conversationHistory.set(sessionKey(subjectToken), messages);
 }
