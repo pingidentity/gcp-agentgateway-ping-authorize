@@ -34,8 +34,7 @@ Both architectures share the same authorization enforcement point — every requ
 ├── stripe-mcp/                 # MCP server with Stripe tools (Go, HTTP)
 ├── ping-store-agent/           # Delegated agent backend (TypeScript, Express)
 ├── ping-chat-ui-storefront/    # Chat UI front-end (React, Vite)
-├── ping-authorize/             # PingAuthorize policy configuration
-├── _docs/                       # Architecture documentation
+├── _docs/                      # Architecture documentation
 └── deploy/gcp/                 # Cloud Build configs
 ```
 
@@ -54,7 +53,7 @@ Both architectures share the same authorization enforcement point — every requ
 - **GCP project** with Cloud Run, Cloud Load Balancing, and Service Extensions APIs enabled
 - **Stripe account** with a [secret API key](https://docs.stripe.com/keys) and at least one customer with a payment method on file — the customer's email must match the user's email in PingOne AIC
 - **PingOne AIC tenant** configured as the OAuth 2.0 authorization server with Dynamic Client Registration enabled, token exchange grants, and a `may_act` script for delegation
-- **PingAuthorize** deployed on a GCE VM in the same GCP project (see [`ping-authorize/`](./ping-authorize/) for setup)
+- **PingAuthorize** deployed on a GCE VM in the same GCP project, behind a GCP load balancer with a Google-managed SSL certificate
 
 ## Deployment
 

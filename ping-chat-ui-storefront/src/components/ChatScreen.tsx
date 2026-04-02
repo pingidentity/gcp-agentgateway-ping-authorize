@@ -69,7 +69,7 @@ export default function ChatScreen() {
         <div className="max-w-[1200px] mx-auto flex justify-between items-center">
           <div className="font-mono text-2xl md:text-xl font-bold tracking-widest uppercase flex items-center">
             <span className="text-ping-red font-bold">[</span>
-            <span className="text-white mx-1 font-bold">PING</span>
+            <span className="text-white mx-1 font-bold">PING IDENTITY STORE</span>
             <span className="text-ping-red font-bold">]</span>
           </div>
           <div className="flex items-center gap-4">
@@ -85,9 +85,9 @@ export default function ChatScreen() {
         <div className="flex-1 max-w-[1200px] w-full mx-auto p-8 md:p-4 overflow-y-auto flex flex-col">
           {messages.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center gap-6 py-16 px-8 animate-[slide-up_0.6s_ease-out]">
-              <div className="text-[5rem] text-ping-red mb-4 animate-[dot-pulse_3s_ease-in-out_infinite] drop-shadow-[0_0_20px_rgba(227,24,55,0.3)]">⚡</div>
-              <h2 className="text-4xl font-bold uppercase tracking-wide font-mono">Ready</h2>
-              <p className="text-base text-text-secondary font-mono uppercase tracking-wide">Type a message to begin</p>
+              <div className="text-[5rem] text-ping-red mb-4 animate-[dot-pulse_3s_ease-in-out_infinite] drop-shadow-[0_0_20px_rgba(227,24,55,0.3)]">🛒</div>
+              <h2 className="text-4xl font-bold uppercase tracking-wide font-mono">How can I help?</h2>
+              <p className="text-base text-text-secondary font-mono uppercase tracking-wide">Ask about products, check your account, or make a purchase</p>
             </div>
           ) : (
             <div className="flex flex-col gap-6 py-4">

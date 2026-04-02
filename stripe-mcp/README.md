@@ -1,10 +1,14 @@
-# stripe-mcp
+# Stripe MCP Server
 
-MCP server that exposes Stripe tools for listing products, looking up customers, and processing payments. Runs behind the Agent Gateway where the `ping-authz-shim` enforces authorization on every request before it reaches this server. OAuth discovery requests (`/.well-known/`) are passed through unauthenticated so MCP clients can bootstrap the authorization flow.
+MCP server that exposes Stripe tools for listing products, looking up customers, and processing payments. Runs behind the Agent Gateway where the `ping-authz-shim` enforces authorization on every request before it reaches this server.
 
 ```
 MCP Client → Agent Gateway → ping-authz-shim (allow/deny) → stripe-mcp
 ```
+
+## OAuth Discovery
+
+OAuth discovery endpoints (`/.well-known/`) are passed through unauthenticated so MCP clients can bootstrap the authorization flow. These are only needed by **attended agents** (e.g. Claude Desktop via `mcp-remote`) that must discover the authorization server to initiate a user login. **Delegated agents** (e.g. `ping-store-agent`) already know the AIC token endpoint and perform RFC 8693 token exchange directly — they never hit these endpoints.
 
 ## Tools
 
@@ -20,15 +24,17 @@ MCP Client → Agent Gateway → ping-authz-shim (allow/deny) → stripe-mcp
 | Variable | Description |
 |---|---|
 | `STRIPE_SECRET_KEY` | Stripe API secret key |
-| `PING_AIC_ISSUER` | PingOne AIC OAuth 2.0 issuer URL (used for userinfo and discovery metadata) |
-| `OAUTH_SCOPES` | Space-separated OAuth scopes advertised in discovery metadata (e.g. `openid profile email stripe_mcp:invoke`) |
+| `PINGONE_AIC_ISSUER` | PingOne AIC OAuth 2.0 issuer URL (used for userinfo and discovery metadata) |
+| `MCP_REQUIRED_SCOPES` | Space-separated OAuth scopes required by this MCP server (e.g. `email stripe_mcp:invoke`) |
+| `MCP_SERVER_PORT` | Port to listen on (set to `8080` for Cloud Run) |
 
 ## Files
 
 | File | Responsibility |
 |---|---|
-| `main.go` | HTTP server bootstrap and config |
-| `routes.go` | Request router (OAuth discovery + MCP handler) |
-| `oauth.go` | OAuth discovery metadata and userinfo resolution |
-| `tools.go` | MCP tool definitions (list/get products, customer lookup, payments) |
+| `main.go` | Entrypoint — wires config, MCP server, and HTTP listener |
+| `http_routes.go` | Request router, bearer token auth, caller identity injection |
+| `oauth_discovery.go` | OAuth/protected-resource discovery metadata (attended agents only) |
+| `mcp_tools.go` | MCP tool definitions (list/get products, customer lookup, payments) |
 | `stripe_client.go` | Stripe API client functions |
+| `util.go` | Shared helpers — env loading, JSON conversion, caller identity resolution |

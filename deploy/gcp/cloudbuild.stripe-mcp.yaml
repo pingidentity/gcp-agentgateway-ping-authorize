@@ -13,8 +13,8 @@ substitutions:
   _GCP_PROJECT_ID: tech-partner-ping
   _STRIPE_MCP_REPO: stripe-mcp-repo
   _SERVICE_NAME: stripe-mcp
-  _PING_AIC_ISSUER: https://openam-tntp-aiagents.forgeblocks.com:443/am/oauth2/alpha
-  _OAUTH_SCOPES: "openid profile email stripe_mcp:invoke"
+  _PINGONE_AIC_ISSUER: https://openam-tntp-aiagents.forgeblocks.com:443/am/oauth2/alpha
+  _MCP_REQUIRED_SCOPES: "stripe_mcp:invoke email"
 
 steps:
   # Build the Docker image.
@@ -53,7 +53,7 @@ steps:
       - --update-secrets
       - STRIPE_SECRET_KEY=stripe-secret-key:latest
       - --update-env-vars
-      - PING_AIC_ISSUER=${_PING_AIC_ISSUER},OAUTH_SCOPES=${_OAUTH_SCOPES}
+      - PINGONE_AIC_ISSUER=${_PINGONE_AIC_ISSUER},MCP_REQUIRED_SCOPES=${_MCP_REQUIRED_SCOPES},MCP_SERVER_PORT=8080
 
 options:
   logging: CLOUD_LOGGING_ONLY

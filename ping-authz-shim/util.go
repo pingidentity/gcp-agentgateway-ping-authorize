@@ -2,12 +2,23 @@ package main
 
 import (
 	"crypto/tls"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	extproc "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 )
+
+// requireEnv returns the value of the given environment variable or fatally exits if unset.
+func requireEnv(key string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		log.Fatalf("required environment variable %s is not set", key)
+	}
+	return val
+}
 
 // ---- Token helpers ----
 
@@ -68,12 +79,4 @@ func resolveHeaderValue(h *corev3.HeaderValue) string {
 		return v
 	}
 	return string(h.GetRawValue())
-}
-
-// valueOrNA returns "n/a" for empty strings, used for cleaner log output.
-func valueOrNA(s string) string {
-	if s == "" {
-		return "n/a"
-	}
-	return s
 }

@@ -1,52 +1,39 @@
 import { Agent, McpClient, Message } from "@strands-agents/sdk";
-import { OpenAIModel } from "@strands-agents/sdk/openai";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { exchangeDelegatedToken } from "./auth.js";
+import { AGENT_GATEWAY_URL, LLM_MODEL, SYSTEM_PROMPT } from "./config.js";
 
-const SYSTEM_PROMPT = `You are a helpful shopping assistant for an online store powered by Stripe.
-You can help users browse products, check prices, and make purchases.
-Use the available MCP tools to interact with the Stripe catalog and payment system.
-Always confirm with the user before initiating any purchase or payment action.
-Be concise and friendly.`;
+/** In-memory conversation history for the agent keyed by user sub claim for multi-turn support. */
+const agentConversationHistory = new Map<string, Message[]>();
 
 /**
- * Creates a Strands agent connected to the MCP server via Agent Gateway.
- *
- * The exchanged token (with sub + act claims) is passed as a Bearer token
+ * Creates a Strands agent connected to the stripe-mcp server via GCP Agent Gateway.
+ * The delegated token (with sub + act claims) is passed as a Bearer token
  * so PingOne Authorize at the gateway can enforce per-user, per-agent policies.
- * Optionally seeded with prior conversation history for multi-turn support.
  */
-export async function createStoreAgent(delegatedToken: string, messages?: Message[]): Promise<Agent> {
-  const gatewayUrl = process.env.AGENT_GATEWAY_URL;
-  if (!gatewayUrl) throw new Error("Missing required env var: AGENT_GATEWAY_URL");
-
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("Missing required env var: OPENAI_API_KEY");
-
-  // MCP client connects to the Agent Gateway with the delegated token
-  const mcpClient = new McpClient({
-    transport: new StreamableHTTPClientTransport(
-      new URL(gatewayUrl),
-      {
-        requestInit: {
-          headers: {
-            Authorization: `Bearer ${delegatedToken}`,
-          },
-        },
-      },
-    ),
+const createStoreAgent = async (delegatedToken: string, messages: Message[]): Promise<Agent> => {
+  const transport = new StreamableHTTPClientTransport(new URL(`${AGENT_GATEWAY_URL}/mcp`), {
+    requestInit: {
+      headers: { Authorization: `Bearer ${delegatedToken}` },
+    },
   });
 
-  const model = new OpenAIModel({
-    apiKey,
-    modelId: "gpt-5.4",
-  });
-
-  const agent = new Agent({
-    model,
-    tools: [mcpClient],
+  return new Agent({
+    model: LLM_MODEL,
+    tools: [new McpClient({ transport })],
     systemPrompt: SYSTEM_PROMPT,
-    ...(messages?.length ? { messages } : {}),
+    ...(messages.length ? { messages } : {}),
   });
+};
 
-  return agent;
-}
+/** Exchanges the user's token for a delegated token and returns an agent with prior conversation history. */
+export const getOrCreateAgentSession = async (userId: string, subjectToken: string): Promise<Agent> => {
+  const { access_token } = await exchangeDelegatedToken(subjectToken);
+  const history = agentConversationHistory.get(userId) ?? [];
+  return createStoreAgent(access_token, history);
+};
+
+/** Persist the agent's conversation history for the next request. */
+export const saveAgentConversation = (userId: string, messages: Message[]): void => {
+  agentConversationHistory.set(userId, messages);
+};

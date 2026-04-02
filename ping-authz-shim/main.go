@@ -1,5 +1,3 @@
-// Package main is the entrypoint for the PingAuthorize ext_proc shim.
-//
 // This service implements Envoy's ExternalProcessor gRPC interface, allowing
 // Google Cloud Load Balancer / Agent Gateway Traffic Extensions to intercept
 // HTTP requests and forward them here for an authorization decision from
@@ -8,7 +6,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 
@@ -16,33 +13,27 @@ import (
 	"google.golang.org/grpc"
 )
 
-// grpcPort is the fixed port this shim listens on. Cloud Run expects containers
-// to bind on 8080 by default.
-const grpcPort = 8080
-
 func main() {
-	// Open the TCP listener that the gRPC server will accept connections on.
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
+	log.SetFlags(0)
+	shimPort := requireEnv("SHIM_SERVER_PORT")
+	pingAuthorizeURL := requireEnv("PING_AUTHORIZE_URL")
+	pingAuthorizeSkipTLS := requireEnv("PING_AUTHORIZE_SKIP_TLS_VERIFY") == "true"
+	mcpServerURL := requireEnv("MCP_SERVER_URL")
+	mcpRequiredScopes := requireEnv("MCP_REQUIRED_SCOPES")
+
+	// Build the gRPC server and register the ext_proc authorization shim.
+	// The Agent Gateway connects here via gRPC (Envoy ext_proc protocol) and
+	// calls Process() for each intercepted request. The shim consults
+	// PingAuthorize and returns an allow/deny decision.
+	grpcServer := grpc.NewServer()
+	extproc.RegisterExternalProcessorServer(grpcServer, NewPingAuthzShim(pingAuthorizeURL, mcpServerURL, mcpRequiredScopes, pingAuthorizeSkipTLS))
+
+	// Start listening — gRPC runs over HTTP/2 on a TCP port.
+	lis, err := net.Listen("tcp", ":"+shimPort)
 	if err != nil {
-		log.Fatalf("failed to listen on port %d: %v", grpcPort, err)
+		log.Fatalf("failed to listen on port %s: %v", shimPort, err)
 	}
-
-	// Create a new gRPC server instance.
-	s := grpc.NewServer()
-
-	// Instantiate the PingAuthorize ext_proc service, which handles
-	// incoming RequestHeaders phases and issues allow/deny decisions.
-	authzShim := NewPingAuthzShim()
-
-	// Register the authz service against Envoy's ExternalProcessor interface.
-	// GCLB Traffic Extensions will invoke Process() on this service for each
-	// intercepted request.
-	extproc.RegisterExternalProcessorServer(s, authzShim)
-
-	log.Printf("PingAuthorize shim listening on port %d...", grpcPort)
-
-	// Begin serving gRPC requests. Blocks until the server is stopped.
-	if err := s.Serve(lis); err != nil {
+	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }

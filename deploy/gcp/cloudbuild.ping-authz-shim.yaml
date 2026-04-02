@@ -14,10 +14,10 @@ substitutions:
   _GCP_PROJECT_ID: tech-partner-ping
   _PING_AUTHZ_SHIM_REPO: ping-authz-shim-repo
   _SERVICE_NAME: ping-authz-shim
-  _PING_AUTHORIZE_URL: https://34.41.151.105:7443/governance-engine
+  _PING_AUTHORIZE_URL: https://ping-authorize-demo.com/governance-engine
   _MCP_SERVER_URL: https://ping-gcp-agent-gateway.com
-  _SKIP_TLS_VERIFY: "true"
-  _OAUTH_SCOPES: "openid profile email stripe_mcp:invoke"
+  _PING_AUTHORIZE_SKIP_TLS_VERIFY: "false"
+  _MCP_REQUIRED_SCOPES: "openid profile email stripe_mcp:invoke"
 
 steps:
   # Build the Docker image.
@@ -55,7 +55,7 @@ steps:
       - --allow-unauthenticated
       - --use-http2
       - --set-env-vars
-      - PING_AUTHORIZE_URL=${_PING_AUTHORIZE_URL},MCP_SERVER_URL=${_MCP_SERVER_URL},SKIP_TLS_VERIFY=${_SKIP_TLS_VERIFY},OAUTH_SCOPES=${_OAUTH_SCOPES}
+      - SHIM_SERVER_PORT=8080,PING_AUTHORIZE_URL=${_PING_AUTHORIZE_URL},MCP_SERVER_URL=${_MCP_SERVER_URL},PING_AUTHORIZE_SKIP_TLS_VERIFY=${_PING_AUTHORIZE_SKIP_TLS_VERIFY},MCP_REQUIRED_SCOPES=${_MCP_REQUIRED_SCOPES}
 
 options:
   logging: CLOUD_LOGGING_ONLY

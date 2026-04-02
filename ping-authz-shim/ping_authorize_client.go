@@ -14,11 +14,19 @@ type pingAuthorizeRequest struct {
 	Attributes map[string]string `json:"attributes"`
 }
 
+// pingAuthorizeStatement captures a policy statement from PingAuthorize.
+type pingAuthorizeStatement struct {
+	Name    string `json:"name"`
+	Code    string `json:"code"`
+	Payload string `json:"payload"`
+}
+
 // pingAuthorizeResponse captures the decision fields returned by PingAuthorize.
 type pingAuthorizeResponse struct {
-	ID         string `json:"id"`
-	Decision   string `json:"decision"`
-	Authorised bool   `json:"authorised"`
+	ID         string                   `json:"id"`
+	Decision   string                   `json:"decision"`
+	Authorised bool                     `json:"authorised"`
+	Statements []pingAuthorizeStatement `json:"statements"`
 }
 
 // callPingAuthorize sends the intercepted request's headers to PingAuthorize

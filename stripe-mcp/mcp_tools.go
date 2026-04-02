@@ -11,10 +11,6 @@ import (
 	stripecustomer "github.com/stripe/stripe-go/v79/customer"
 )
 
-// Context key for the caller's email, resolved from AIC userinfo after token validation.
-// Used by tools to look up the caller's Stripe customer record and payment methods.
-const ctxKeyCallerEmail = "caller-email"
-
 // registerStripeMcpTools adds all Stripe MCP tools to this MCP server.
 func registerStripeMcpTools(s *server.MCPServer) {
 	s.AddTool(listStripeProductsTool())

@@ -82,6 +82,6 @@ When the shim intercepts a `tools/call` request, it extracts and sends the follo
 | `mcp_method` | MCP JSON-RPC method (e.g., `tools/call`, `tools/list`) |
 | `mcp_tool_name` | Name of the tool being invoked (e.g., `create_stripe_payment_intent`) |
 | `mcp_product_id` | Stripe product ID (payment intent only) |
-| `mcp_purchase_quantity` | Purchase quantity (payment intent only) |
+| `mcp_quantity` | Purchase quantity (payment intent only) |
 | `mcp_total_price` | Total price for the purchase (payment intent only) |
 | `mcp_currency` | Currency code (payment intent only) |

@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -19,26 +18,26 @@ import (
 // (bearer token, MCP tool name, purchase amount) and forwards them to PingAuthorize for an
 // allow/deny decision before the request reaches the downstream MCP server.
 type PingAuthzShim struct {
-	httpClient       *http.Client
-	pingAuthorizeURL string
-	mcpServerURL     string
-	scopes           string
+	httpClient        *http.Client
+	pingAuthorizeURL  string
+	mcpServerURL      string
+	mcpRequiredScopes string
 }
 
-// NewPingAuthzShim initializes the ext_proc shim from environment configuration.
-func NewPingAuthzShim() *PingAuthzShim {
+// NewPingAuthzShim creates the ext_proc shim with the given configuration.
+func NewPingAuthzShim(pingAuthorizeURL, mcpServerURL, mcpRequiredScopes string, skipTLSVerify bool) *PingAuthzShim {
 	return &PingAuthzShim{
-		pingAuthorizeURL: strings.TrimSpace(os.Getenv("PING_AUTHORIZE_URL")),
-		mcpServerURL:     strings.TrimSpace(os.Getenv("MCP_SERVER_URL")),
-		scopes:           strings.TrimSpace(os.Getenv("OAUTH_SCOPES")),
+		pingAuthorizeURL:  pingAuthorizeURL,
+		mcpServerURL:      mcpServerURL,
+		mcpRequiredScopes: mcpRequiredScopes,
 		httpClient: &http.Client{
 			Timeout:   5 * time.Second,
-			Transport: newTLSTransport(os.Getenv("SKIP_TLS_VERIFY") == "true"),
+			Transport: newTLSTransport(skipTLSVerify),
 		},
 	}
 }
 
-// Process handles the bidirectional gRPC stream between Envoy and this ext_proc shim.
+// Process handles the bidirectional gRPC stream from the Agent Gateway.
 //
 // Two phases are intercepted:
 //  1. RequestHeaders — fast-path decisions (passthrough, 401, 404). For authenticated
@@ -46,7 +45,6 @@ func NewPingAuthzShim() *PingAuthzShim {
 //  2. RequestBody — parses the MCP JSON-RPC payload to extract tool_name and
 //     purchase_amount, then calls PingAuthorize with the full attribute set.
 func (s *PingAuthzShim) Process(stream extproc.ExternalProcessor_ProcessServer) error {
-	// Per-stream state: headers from phase 1 are used in phase 2.
 	var savedHeaders map[string]string
 	var traceID string
 
@@ -62,16 +60,8 @@ func (s *PingAuthzShim) Process(stream extproc.ExternalProcessor_ProcessServer) 
 
 		// Phase 1: Request Headers
 		if reqHeaders := msg.GetRequestHeaders(); reqHeaders != nil {
-			traceID = fmt.Sprintf("pa-%d", time.Now().UnixNano())
+			traceID = fmt.Sprintf("req-%08x", time.Now().UnixNano()&0xFFFFFFFF)
 			savedHeaders = flattenEnvoyHeaders(reqHeaders)
-			log.Printf("[%s] incoming headers:", traceID)
-			for k, v := range savedHeaders {
-				if strings.EqualFold(k, "authorization") {
-					log.Printf("[%s]   %s=%s", traceID, k, v)
-				} else {
-					log.Printf("[%s]   %s=%s", traceID, k, v)
-				}
-			}
 			resp := s.evaluateHeaders(traceID, savedHeaders)
 			if err := stream.Send(resp); err != nil {
 				return err
@@ -130,90 +120,90 @@ type mcpJsonRpcRequest struct {
 	} `json:"params"`
 }
 
-// evaluateBody parses the MCP JSON-RPC body, extracts tool_name and purchase_amount,
-// then calls PingAuthorize with the complete attribute set.
+// evaluateBody parses the MCP JSON-RPC body, builds the policy attribute set,
+// then calls PingAuthorize for an allow/deny decision.
 func (s *PingAuthzShim) evaluateBody(traceID string, headers map[string]string, body []byte) *extproc.ProcessingResponse {
-	// Start with all request headers as attributes.
-	attributes := make(map[string]string, len(headers)+3)
-	for k, v := range headers {
-		attributes[k] = v
-	}
+	attributes := buildPolicyAttributes(headers, body)
+	logPolicyAttributes(traceID, attributes)
 
-	// Parse the MCP JSON-RPC payload and extract tool name + arguments for policy evaluation.
-	var rpc mcpJsonRpcRequest
-	if err := json.Unmarshal(body, &rpc); err == nil {
-		attributes["mcp_method"] = rpc.Method
-
-		if rpc.Method == "tools/call" {
-			attributes["mcp_tool_name"] = rpc.Params.Name
-
-			// Only extract purchase args for the payment intent tool.
-			if rpc.Params.Name == "create_stripe_payment_intent" {
-				if productID, ok := rpc.Params.Arguments["product_id"]; ok {
-					attributes["mcp_product_id"] = fmt.Sprintf("%v", productID)
-				}
-				if quantity, ok := rpc.Params.Arguments["quantity"]; ok {
-					attributes["mcp_purchase_quantity"] = fmt.Sprintf("%v", quantity)
-				}
-				if totalPrice, ok := rpc.Params.Arguments["total_price"]; ok {
-					attributes["mcp_total_price"] = fmt.Sprintf("%v", totalPrice)
-				}
-				if currency, ok := rpc.Params.Arguments["currency"]; ok {
-					attributes["mcp_currency"] = fmt.Sprintf("%v", currency)
-				}
-			}
-		}
-	}
-
-	// Replace the raw authorization header with just the bearer token.
-	token := ExtractBearerToken(attributes["authorization"])
-	delete(attributes, "authorization")
-	if token != "" {
-		attributes["access_token"] = token
-	}
-
-	// Log the attributes being sent to PingAuthorize for observability.
-	mcpMethod := valueOrNA(attributes["mcp_method"])
-	toolName := valueOrNA(attributes["mcp_tool_name"])
-	log.Printf("[%s] → PingAuthorize attributes:", traceID)
-	log.Printf("[%s]   access_token=%s", traceID, token)
-	log.Printf("[%s]   mcp_method=%s mcp_tool_name=%s", traceID, mcpMethod, toolName)
-	// Log purchase-specific attributes only when present.
-	if v, ok := attributes["mcp_product_id"]; ok {
-		log.Printf("[%s]   mcp_product_id=%s", traceID, v)
-	}
-	if v, ok := attributes["mcp_purchase_quantity"]; ok {
-		log.Printf("[%s]   mcp_purchase_quantity=%s", traceID, v)
-	}
-	if v, ok := attributes["mcp_total_price"]; ok {
-		log.Printf("[%s]   mcp_total_price=%s", traceID, v)
-	}
-	if v, ok := attributes["mcp_currency"]; ok {
-		log.Printf("[%s]   mcp_currency=%s", traceID, v)
-	}
-
-	// Call PingAuthorize with all attributes for a policy decision.
-	req := pingAuthorizeRequest{Attributes: attributes}
-	allowed, decision, err := s.callPingAuthorize(req)
+	allowed, decision, err := s.callPingAuthorize(pingAuthorizeRequest{Attributes: attributes})
 	if err != nil {
 		log.Printf("[%s] policy call failed: %v", traceID, err)
 		return buildRejectBodyResponse(
 			typev3.StatusCode_Forbidden, s.getWWWAuthenticate(), traceID,
-			`{"error":"access_denied","decision_id":"`+traceID+`","source":"ping-authorize"}`,
+			fmt.Sprintf(`{"error":"access_denied","decision_id":"%s","source":"ping-authorize"}`, traceID),
 		)
 	}
+
+	toolName := attributes["mcp_tool_name"]
 	log.Printf("[%s] ← PingAuthorize decision=%s tool=%q", traceID, decision.Decision, toolName)
 
 	if allowed {
 		return buildAllowBodyResponse(traceID)
 	}
+
+	reason := "Access denied by policy"
+	if len(decision.Statements) > 0 && decision.Statements[0].Payload != "" {
+		reason = decision.Statements[0].Payload
+	}
 	return buildRejectBodyResponse(
 		typev3.StatusCode_Forbidden, s.getWWWAuthenticate(), traceID,
-		`{"error":"access_denied","decision":"deny","decision_id":"`+traceID+`","source":"ping-authorize"}`,
+		fmt.Sprintf(`{"error":"access_denied","reason":"%s","decision":"deny","decision_id":"%s","source":"ping-authorize"}`, reason, traceID),
 	)
+}
+
+// buildPolicyAttributes combines request headers and the MCP JSON-RPC body
+// into a flat attribute map for PingAuthorize policy evaluation.
+func buildPolicyAttributes(headers map[string]string, body []byte) map[string]string {
+	attrs := make(map[string]string, len(headers)+6)
+	for k, v := range headers {
+		attrs[k] = v
+	}
+
+	// Replace raw authorization header with just the bearer token.
+	token := ExtractBearerToken(attrs["authorization"])
+	delete(attrs, "authorization")
+	if token != "" {
+		attrs["access_token"] = token
+	}
+
+	// Parse MCP JSON-RPC payload for tool name and arguments.
+	var rpc mcpJsonRpcRequest
+	if err := json.Unmarshal(body, &rpc); err != nil {
+		return attrs
+	}
+	attrs["mcp_method"] = rpc.Method
+
+	if rpc.Method != "tools/call" {
+		return attrs
+	}
+	attrs["mcp_tool_name"] = rpc.Params.Name
+
+	// Extract purchase-specific arguments for payment policy decisions.
+	if rpc.Params.Name == "create_stripe_payment_intent" {
+		for _, key := range []string{"product_id", "quantity", "total_price", "currency"} {
+			if val, ok := rpc.Params.Arguments[key]; ok {
+				attrs["mcp_"+key] = fmt.Sprintf("%v", val)
+			}
+		}
+	}
+
+	return attrs
+}
+
+// logPolicyAttributes logs the attributes being sent to PingAuthorize.
+func logPolicyAttributes(traceID string, attrs map[string]string) {
+	log.Printf("[%s] → PingAuthorize attributes:", traceID)
+	log.Printf("[%s]   access_token=%s", traceID, attrs["access_token"])
+	log.Printf("[%s]   mcp_method=%s mcp_tool_name=%s", traceID, attrs["mcp_method"], attrs["mcp_tool_name"])
+	for _, key := range []string{"mcp_product_id", "mcp_quantity", "mcp_total_price", "mcp_currency"} {
+		if v, ok := attrs[key]; ok {
+			log.Printf("[%s]   %s=%s", traceID, key, v)
+		}
+	}
 }
 
 // getWWWAuthenticate returns the WWW-Authenticate header value for reject responses.
 func (s *PingAuthzShim) getWWWAuthenticate() string {
-	return fmt.Sprintf(`Bearer resource_metadata="%s/.well-known/oauth-protected-resource", scope="%s"`, s.mcpServerURL, s.scopes)
+	return fmt.Sprintf(`Bearer resource_metadata="%s/.well-known/oauth-protected-resource", scope="%s"`, s.mcpServerURL, s.mcpRequiredScopes)
 }

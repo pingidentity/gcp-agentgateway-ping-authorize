@@ -52,6 +52,7 @@ func newRouter(mcpServer *server.StreamableHTTPServer) http.Handler {
 			return
 		}
 
+		// Inject caller email into context so MCP tool handlers can identify the user.
 		ctx := context.WithValue(r.Context(), ctxKeyCallerEmail, email)
 		r = r.WithContext(ctx)
 		mcpServer.ServeHTTP(w, r)
