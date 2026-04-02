@@ -64,6 +64,14 @@ func (s *PingAuthzShim) Process(stream extproc.ExternalProcessor_ProcessServer) 
 		if reqHeaders := msg.GetRequestHeaders(); reqHeaders != nil {
 			traceID = fmt.Sprintf("pa-%d", time.Now().UnixNano())
 			savedHeaders = flattenEnvoyHeaders(reqHeaders)
+			log.Printf("[%s] incoming headers:", traceID)
+			for k, v := range savedHeaders {
+				if strings.EqualFold(k, "authorization") {
+					log.Printf("[%s]   %s=%s", traceID, k, v)
+				} else {
+					log.Printf("[%s]   %s=%s", traceID, k, v)
+				}
+			}
 			resp := s.evaluateHeaders(traceID, savedHeaders)
 			if err := stream.Send(resp); err != nil {
 				return err

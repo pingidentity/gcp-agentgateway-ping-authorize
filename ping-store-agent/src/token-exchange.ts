@@ -68,6 +68,8 @@ export async function exchangeForDelegatedToken(
 
   // Step 1: Get actor token for the agent (client_credentials)
   const actorToken = await getActorToken();
+  console.log("Token exchange — subject_token:", userAccessToken);
+  console.log("Token exchange — actor_token:", actorToken);
 
   // Step 2: Exchange subject token + actor token for a delegated token
   const params = new URLSearchParams({
@@ -97,7 +99,9 @@ export async function exchangeForDelegatedToken(
     throw new Error(`Token exchange (delegation) failed (${res.status}): ${body}`);
   }
 
-  return (await res.json()) as TokenExchangeResult;
+  const result = (await res.json()) as TokenExchangeResult;
+  console.log("Token exchange — delegated_token:", result.access_token);
+  return result;
 }
 
 function requiredEnv(name: string): string {
