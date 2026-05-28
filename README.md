@@ -4,9 +4,6 @@ A proof of concept demonstrating centralized authorization for [MCP](https://mod
 
 The sample MCP server wraps the [Stripe API](https://docs.stripe.com/api) and runs behind a GCP Agent Gateway. Every inbound request is intercepted by an ext_proc service that parses the MCP request body, extracts the tool name and arguments, and calls PingAuthorize for a policy decision — all **before** the request reaches the MCP server.
 
-> [!WARNING]
-> This is a proof of concept intended to demonstrate the integration pattern. **You must implement all preventive and defense-in-depth security measures before deploying to production.** Please review the [MCP Security Best Practices](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices), the [Envoy External Processing filter documentation](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter), and the [GCP Service Extensions overview](https://cloud.google.com/service-extensions/docs/overview) before using this in any production environment.
-
 ## Agent Types
 
 This project supports two distinct agent architectures, each with its own authentication and authorization flow. See the dedicated documentation for details on how each works:
