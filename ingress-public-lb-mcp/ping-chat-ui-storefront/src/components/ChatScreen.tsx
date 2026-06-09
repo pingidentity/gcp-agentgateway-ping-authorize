@@ -156,7 +156,7 @@ export default function ChatScreen() {
         </form>
         <div className="max-w-[1200px] mx-auto font-mono text-[0.7rem] text-text-secondary text-center flex items-center justify-center gap-2 uppercase tracking-wide">
           <span className="w-1.5 h-1.5 rounded-full bg-ping-red animate-[dot-pulse_2s_ease-in-out_infinite]" />
-          <span>Powered by PingOne AIC, PingAuthorize, Strands Agents, GCP AgentGateway, and Stripe MCP</span>
+          <span>Powered by PingOne AIC, PingAuthorize, Strands Agents, GCP Load Balancer, and Stripe MCP</span>
         </div>
       </footer>
     </div>

@@ -1,7 +1,7 @@
 import { OpenAIModel } from "@strands-agents/sdk/openai";
 import { requiredEnv } from "./util.js";
 
-export const AGENT_GATEWAY_URL = requiredEnv("AGENT_GATEWAY_URL");
+export const LB_URL = requiredEnv("LB_URL");
 export const CORS_ORIGIN_CHAT_UI_STOREFRONT = requiredEnv("CORS_ORIGIN_CHAT_UI_STOREFRONT");
 export const PINGONE_AIC_ISSUER = requiredEnv("PINGONE_AIC_ISSUER");
 export const AGENT_PORT = requiredEnv("AGENT_PORT");

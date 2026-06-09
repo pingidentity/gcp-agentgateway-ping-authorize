@@ -13,7 +13,7 @@ import (
 // newRouter builds the HTTP handler that routes OAuth discovery and
 // authenticated MCP requests. Discovery endpoints (/.well-known/) are served
 // unauthenticated so clients can bootstrap the OAuth flow. All other requests
-// require a valid bearer token, enforced by the shim at the Agent Gateway.
+// require a valid bearer token, enforced by the shim at the load balancer.
 func newRouter(mcpServer *server.StreamableHTTPServer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path

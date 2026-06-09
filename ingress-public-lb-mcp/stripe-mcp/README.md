@@ -1,9 +1,9 @@
 # Stripe MCP Server
 
-MCP server that exposes Stripe tools for listing products, looking up customers, and processing payments. Runs behind the Agent Gateway where the `ping-authz-shim` enforces authorization on every request before it reaches this server.
+MCP server that exposes Stripe tools for listing products, looking up customers, and processing payments. Runs behind the regional load balancer where the `ping-authz-shim` enforces authorization on every request before it reaches this server.
 
 ```
-MCP Client → Agent Gateway → ping-authz-shim (allow/deny) → stripe-mcp
+MCP Client → Regional Load Balancer → ping-authz-shim (allow/deny) → stripe-mcp
 ```
 
 ## OAuth Discovery

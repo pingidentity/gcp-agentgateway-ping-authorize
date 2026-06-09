@@ -13,7 +13,7 @@ import (
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 )
 
-// PingAuthzShim is the ext_proc gRPC server. The load balancer / agent gateway calls this for
+// PingAuthzShim is the ext_proc gRPC server. The load balancer calls this for
 // every intercepted request. It inspects both headers and body to extract policy attributes
 // (bearer token, MCP tool name, purchase amount) and forwards them to PingAuthorize for an
 // allow/deny decision before the request reaches the downstream MCP server.
@@ -37,7 +37,7 @@ func NewPingAuthzShim(pingAuthorizeURL, mcpServerURL, mcpRequiredScopes string, 
 	}
 }
 
-// Process handles the bidirectional gRPC stream from the Agent Gateway.
+// Process handles the bidirectional gRPC stream from the load balancer.
 //
 // Two phases are intercepted:
 //  1. RequestHeaders — fast-path decisions (passthrough, 401, 404). For authenticated

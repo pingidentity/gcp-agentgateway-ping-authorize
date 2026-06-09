@@ -1,11 +1,11 @@
 # Ping Store Agent
 
-Express backend that acts as a **delegated agent** — receives a user's access token, performs [RFC 8693 token exchange](https://datatracker.ietf.org/doc/html/rfc8693), then uses a Strands AI agent to invoke Stripe MCP tools through the GCP Agent Gateway on the user's behalf.
+Express backend that acts as a **delegated agent** — receives a user's access token, performs [RFC 8693 token exchange](https://datatracker.ietf.org/doc/html/rfc8693), then uses a Strands AI agent to invoke Stripe MCP tools through the regional load balancer on the user's behalf.
 
 ## Token Flow
 
 **Inbound Auth**: `ping-chat-ui-storefront` → subject token (from auth code grant) → `ping-store-agent`  
-**Outbound Auth**: `ping-store-agent` → delegated token (from token exchange grant) → GCP Agent Gateway → `stripe-mcp`
+**Outbound Auth**: `ping-store-agent` → delegated token (from token exchange grant) → Regional Load Balancer → `stripe-mcp`
 
 ## Project Structure
 
@@ -22,7 +22,7 @@ src/
 
 | Variable | Description |
 |---|---|
-| `AGENT_GATEWAY_URL` | GCP Agent Gateway URL (e.g. `https://ping-gcp-agent-gateway.com`) |
+| `LB_URL` | Regional load balancer URL (e.g. `https://your-mcp-lb.com`) |
 | `CORS_ORIGIN_CHAT_UI_STOREFRONT` | Allowed CORS origin for the chat UI (e.g. `https://ping-store-chat-app.com`) |
 | `PINGONE_AIC_ISSUER` | PingOne AIC issuer URL (used for OIDC discovery, JWKS, and token endpoint) |
 | `AGENT_PORT` | Server port (e.g. `3000`) |

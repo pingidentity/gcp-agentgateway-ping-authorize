@@ -1,6 +1,6 @@
 # Cloud Build pipeline: stripe-mcp
 #
-# Deploys the MCP server that exposes Stripe tools behind the Agent Gateway.
+# Deploys the MCP server that exposes Stripe tools behind the regional load balancer.
 # The ping-authz-shim enforces authorization before any request reaches here.
 #
 # Pipeline: Build image → Push to Artifact Registry → Deploy to Cloud Run

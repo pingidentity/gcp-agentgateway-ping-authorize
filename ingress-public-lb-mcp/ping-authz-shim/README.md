@@ -1,9 +1,9 @@
 # ping-authz-shim
 
-gRPC service implementing Envoy's [ext_proc](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter) protocol. The Agent Gateway intercepts every inbound request and forwards it here for an authorization decision from [PingAuthorize](https://docs.pingidentity.com/pingauthorize/11.0/pingauthorize_policy_administration_guide/paz_policy_management.html) before the request reaches the downstream MCP server.
+gRPC service implementing Envoy's [ext_proc](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter) protocol. The regional load balancer intercepts every inbound request and forwards it here for an authorization decision from [PingAuthorize](https://docs.pingidentity.com/pingauthorize/11.0/pingauthorize_policy_administration_guide/paz_policy_management.html) before the request reaches the downstream MCP server.
 
 ```
-AI Agent → Agent Gateway → ping-authz-shim → PingAuthorize → allow / deny
+AI Agent → Regional Load Balancer → ping-authz-shim → PingAuthorize → allow / deny
 ```
 
 ## Request Phases

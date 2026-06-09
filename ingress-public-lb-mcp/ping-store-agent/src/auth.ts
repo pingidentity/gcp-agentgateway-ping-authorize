@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 import type { TokenExchangeResult } from "./util.js";
 import { basicAuthHeader, HttpError } from "./util.js";
-import { PINGONE_AIC_ISSUER, AGENT_CLIENT_ID, AGENT_CLIENT_SECRET, AGENT_REQUIRED_SCOPES, AGENT_GATEWAY_URL } from "./config.js";
+import { PINGONE_AIC_ISSUER, AGENT_CLIENT_ID, AGENT_CLIENT_SECRET, AGENT_REQUIRED_SCOPES, LB_URL } from "./config.js";
 
 /** Strips the default :443 port from HTTPS URLs for consistent comparison. */
 const normalizeUrl = (url: string) => url.replace(/:443(?=\/)/, "");
@@ -74,7 +74,7 @@ export const exchangeDelegatedToken = async (userToken: string): Promise<TokenEx
       actor_token: actorToken,
       actor_token_type: "urn:ietf:params:oauth:token-type:access_token",
       requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
-      audience: AGENT_GATEWAY_URL,
+      audience: LB_URL,
       scope: AGENT_REQUIRED_SCOPES,
     }),
     "Token exchange",

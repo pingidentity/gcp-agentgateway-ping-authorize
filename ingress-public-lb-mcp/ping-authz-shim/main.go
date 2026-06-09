@@ -1,5 +1,5 @@
 // This service implements Envoy's ExternalProcessor gRPC interface, allowing
-// Google Cloud Load Balancer / Agent Gateway Traffic Extensions to intercept
+// Google Cloud Load Balancer Traffic Extensions to intercept
 // HTTP requests and forward them here for an authorization decision from
 // PingAuthorize. Allowed requests are passed through to the downstream
 // MCP server; denied requests receive an immediate HTTP error response.
@@ -22,7 +22,7 @@ func main() {
 	mcpRequiredScopes := requireEnv("MCP_REQUIRED_SCOPES")
 
 	// Build the gRPC server and register the ext_proc authorization shim.
-	// The Agent Gateway connects here via gRPC (Envoy ext_proc protocol) and
+	// The load balancer connects here via gRPC (Envoy ext_proc protocol) and
 	// calls Process() for each intercepted request. The shim consults
 	// PingAuthorize and returns an allow/deny decision.
 	grpcServer := grpc.NewServer()

@@ -1,18 +1,18 @@
 import { Agent, McpClient, Message } from "@strands-agents/sdk";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { exchangeDelegatedToken } from "./auth.js";
-import { AGENT_GATEWAY_URL, LLM_MODEL, SYSTEM_PROMPT } from "./config.js";
+import { LB_URL, LLM_MODEL, SYSTEM_PROMPT } from "./config.js";
 
 /** In-memory conversation history for the agent keyed by user sub claim for multi-turn support. */
 const agentConversationHistory = new Map<string, Message[]>();
 
 /**
- * Creates a Strands agent connected to the stripe-mcp server via GCP Agent Gateway.
+ * Creates a Strands agent connected to the stripe-mcp server via the regional load balancer.
  * The delegated token (with sub + act claims) is passed as a Bearer token
- * so PingOne Authorize at the gateway can enforce per-user, per-agent policies.
+ * so PingAuthorize at the load balancer can enforce per-user, per-agent policies.
  */
 const createStoreAgent = async (delegatedToken: string, messages: Message[]): Promise<Agent> => {
-  const transport = new StreamableHTTPClientTransport(new URL(`${AGENT_GATEWAY_URL}/mcp`), {
+  const transport = new StreamableHTTPClientTransport(new URL(`${LB_URL}/mcp`), {
     requestInit: {
       headers: { Authorization: `Bearer ${delegatedToken}` },
     },

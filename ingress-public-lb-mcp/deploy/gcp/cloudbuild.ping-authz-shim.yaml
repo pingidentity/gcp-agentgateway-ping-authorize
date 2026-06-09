@@ -15,7 +15,7 @@ substitutions:
   _PING_AUTHZ_SHIM_REPO: ping-authz-shim-repo
   _SERVICE_NAME: ping-authz-shim
   _PING_AUTHORIZE_URL: https://ping-authorize-demo.com/governance-engine
-  _MCP_SERVER_URL: https://ping-gcp-agent-gateway.com
+  _MCP_SERVER_URL: https://your-mcp-lb.com
   _PING_AUTHORIZE_SKIP_TLS_VERIFY: "false"
   _MCP_REQUIRED_SCOPES: "openid profile email stripe_mcp:invoke"
 

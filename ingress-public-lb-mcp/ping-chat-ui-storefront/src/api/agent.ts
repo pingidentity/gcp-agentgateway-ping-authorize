@@ -5,7 +5,7 @@ const AGENT_BACKEND_URL = import.meta.env.VITE_PING_STORE_AGENT_URL as string;
  *
  * The agent backend receives the subject token (user's AIC access token with
  * may_act claim), performs RFC 8693 token exchange to obtain a delegated token,
- * then invokes MCP tools on the Agent Gateway on behalf of the user.
+ * then invokes MCP tools on the load balancer on behalf of the user.
  *
  * The backend maintains agent sessions keyed by subject token, so conversation
  * history is preserved across calls for the lifetime of the token.

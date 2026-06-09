@@ -9,7 +9,7 @@ User → AIC login (PKCE) → access token (with may_act claim)
      → sent to ping-store-agent → token exchange (RFC 8693) → delegated MCP calls
 ```
 
-The access token authorizes the agent to act on behalf of the user. The agent performs token exchange and calls Stripe MCP tools through the GCP Agent Gateway.
+The access token authorizes the agent to act on behalf of the user. The agent performs token exchange and calls Stripe MCP tools through the regional load balancer.
 
 ## Project Structure
 
