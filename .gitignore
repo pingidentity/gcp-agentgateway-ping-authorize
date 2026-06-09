@@ -1,5 +1,5 @@
 # GitHub/Copilot/Claude config
-.github/copilot-instructions.md
+.claude/settings.local.json
 
 # Local build artifacts
 hello-api/hello-api

@@ -1,0 +1,59 @@
+# Cloud Build pipeline: stripe-mcp
+#
+# Deploys the MCP server that exposes Stripe tools behind the Agent Gateway.
+# The ping-authz-shim enforces authorization before any request reaches here.
+#
+# Pipeline: Build image → Push to Artifact Registry → Deploy to Cloud Run
+#
+# Security: Ingress restricted to load balancer traffic only — services are
+# not directly accessible from the public internet.
+
+substitutions:
+  _GCP_REGION: us-central1
+  _GCP_PROJECT_ID: tech-partner-ping
+  _STRIPE_MCP_REPO: stripe-mcp-repo
+  _SERVICE_NAME: stripe-mcp
+  _PINGONE_AIC_ISSUER: https://openam-tntp-aiagents.forgeblocks.com:443/am/oauth2/alpha
+  _MCP_REQUIRED_SCOPES: "stripe_mcp:invoke email"
+
+steps:
+  # Build the Docker image.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_STRIPE_MCP_REPO}/stripe-mcp:${SHORT_SHA}
+      - ingress-public-lb-mcp/stripe-mcp
+
+  # Push the image to Artifact Registry.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_STRIPE_MCP_REPO}/stripe-mcp:${SHORT_SHA}
+
+  # Deploy to Cloud Run.
+  # --ingress: only reachable via the load balancer, not the public internet.
+  # --update-secrets: injects Stripe API key from Secret Manager.
+  # --update-env-vars: AIC issuer and scopes for OAuth discovery (RFC 9728 / 8414).
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE_NAME}
+      - --image
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_STRIPE_MCP_REPO}/stripe-mcp:${SHORT_SHA}
+      - --region
+      - ${_GCP_REGION}
+      - --platform
+      - managed
+      - --ingress
+      - internal-and-cloud-load-balancing
+      - --allow-unauthenticated
+      - --update-secrets
+      - STRIPE_SECRET_KEY=stripe-secret-key:latest
+      - --update-env-vars
+      - PINGONE_AIC_ISSUER=${_PINGONE_AIC_ISSUER},MCP_REQUIRED_SCOPES=${_MCP_REQUIRED_SCOPES},MCP_SERVER_PORT=8080
+
+options:
+  logging: CLOUD_LOGGING_ONLY

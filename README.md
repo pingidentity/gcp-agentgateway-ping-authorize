@@ -19,20 +19,23 @@ Both architectures share the same authorization enforcement point — every requ
 
 | Service | Description |
 |---|---|
-| [`ping-authz-shim`](./ping-authz-shim/) | Envoy ext_proc shim — intercepts every request, parses MCP payloads, and consults PingAuthorize for a policy decision |
-| [`stripe-mcp`](./stripe-mcp/) | MCP server exposing Stripe tools (product catalog, customer lookup, payments) |
-| [`ping-store-agent`](./ping-store-agent/) | Delegated agent backend — handles user sessions, token exchange, and MCP tool invocation |
-| [`ping-chat-ui-storefront`](./ping-chat-ui-storefront/) | Chat UI front-end — user authentication and conversation interface |
+| [`ping-authz-shim`](./ingress-public-lb-mcp/ping-authz-shim/) | Envoy ext_proc shim — intercepts every request, parses MCP payloads, and consults PingAuthorize for a policy decision |
+| [`stripe-mcp`](./ingress-public-lb-mcp/stripe-mcp/) | MCP server exposing Stripe tools (product catalog, customer lookup, payments) |
+| [`ping-store-agent`](./ingress-public-lb-mcp/ping-store-agent/) | Delegated agent backend — handles user sessions, token exchange, and MCP tool invocation |
+| [`ping-chat-ui-storefront`](./ingress-public-lb-mcp/ping-chat-ui-storefront/) | Chat UI front-end — user authentication and conversation interface |
 
 ## Repository Structure
 
 ```
-├── ping-authz-shim/            # ext_proc authorization shim (Go, gRPC)
-├── stripe-mcp/                 # MCP server with Stripe tools (Go, HTTP)
-├── ping-store-agent/           # Delegated agent backend (TypeScript, Express)
-├── ping-chat-ui-storefront/    # Chat UI front-end (React, Vite)
-├── _docs/                      # Architecture documentation
-└── deploy/gcp/                 # Cloud Build configs
+├── ingress-public-lb-mcp/      # Use Case 1: Public internet → Regional LB → Cloud Run MCP
+│   ├── ping-authz-shim/        # ext_proc authorization shim (Go, gRPC)
+│   ├── stripe-mcp/             # MCP server with Stripe tools (Go, HTTP)
+│   ├── ping-store-agent/       # Delegated agent backend (TypeScript, Express)
+│   ├── ping-chat-ui-storefront/# Chat UI front-end (React, Vite)
+│   └── deploy/gcp/             # Cloud Build configs
+├── egress-registry-gw-mcp/     # Use Case 2: Agent Registry → Agent Gateway (Egress) → MCP Servers
+├── egress-gemini-enterprise/   # Use Case 3: Gemini Enterprise → Agent Gateway (Egress) → Ping policy
+└── _docs/                      # Architecture documentation
 ```
 
 ## Protocols & Standards
