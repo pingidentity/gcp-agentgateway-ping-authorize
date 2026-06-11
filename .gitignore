@@ -2,15 +2,12 @@
 .claude/settings.local.json
 
 # Local build artifacts
-hello-api/hello-api
-stripe-mcp/stripe-mcp
-ping-authz-shim/ping-authz-shim
+ingress-public-lb-mcp/stripe-mcp/stripe-mcp
+ingress-public-lb-mcp/ping-authz-shim/ping-authz-shim
 
 # Node
 node_modules/
 dist/
-ping-chat-ui-storefront/deploy.sh
-ping-store-agent/deploy.sh
 
 # OS/editor noise
 .DS_Store

@@ -23,6 +23,25 @@ The shim intercepts requests in two phases:
 | `MCP_REQUIRED_SCOPES` | Space-separated scopes advertised in `WWW-Authenticate` headers |
 | `PING_AUTHORIZE_SKIP_TLS_VERIFY` | Set to `true` to disable TLS cert verification for PingAuthorize calls (dev only) |
 
+## Deployment
+
+Deployed to Cloud Run via the Cloud Build pipeline at [`../deploy/gcp/cloudbuild.ping-authz-shim.yaml`](../deploy/gcp/cloudbuild.ping-authz-shim.yaml).
+
+**Trigger from repo root:**
+
+```bash
+gcloud builds submit \
+  --config ingress-public-lb-mcp/deploy/gcp/cloudbuild.ping-authz-shim.yaml \
+  --substitutions \
+    _PING_AUTHORIZE_URL=https://your-ping-authorize.com/governance-engine,\
+    _MCP_SERVER_URL=https://your-mcp-lb.com,\
+    _MCP_REQUIRED_SCOPES="openid profile email stripe_mcp:invoke"
+```
+
+The pipeline builds the Docker image, pushes it to Artifact Registry, and deploys to Cloud Run with `--ingress internal-and-cloud-load-balancing` and `--use-http2` (required for gRPC).
+
+Copy `.env.sample` to `.env` and fill in values for local development.
+
 ## Files
 
 | File | Responsibility |

@@ -28,6 +28,30 @@ OAuth discovery endpoints (`/.well-known/`) are passed through unauthenticated s
 | `MCP_REQUIRED_SCOPES` | Space-separated OAuth scopes required by this MCP server (e.g. `email stripe_mcp:invoke`) |
 | `MCP_SERVER_PORT` | Port to listen on (set to `8080` for Cloud Run) |
 
+## Deployment
+
+Deployed to Cloud Run via the Cloud Build pipeline at [`../deploy/gcp/cloudbuild.stripe-mcp.yaml`](../deploy/gcp/cloudbuild.stripe-mcp.yaml).
+
+First, store the Stripe secret key in GCP Secret Manager:
+
+```bash
+echo -n "sk_live_..." | gcloud secrets create stripe-secret-key --data-file=-
+```
+
+**Trigger from repo root:**
+
+```bash
+gcloud builds submit \
+  --config ingress-public-lb-mcp/deploy/gcp/cloudbuild.stripe-mcp.yaml \
+  --substitutions \
+    _PINGONE_AIC_ISSUER=https://your-aic-issuer,\
+    _MCP_REQUIRED_SCOPES="stripe_mcp:invoke email"
+```
+
+The pipeline builds the Docker image, pushes it to Artifact Registry, and deploys to Cloud Run with `--ingress internal-and-cloud-load-balancing`. The Stripe secret is injected from Secret Manager at deploy time.
+
+Copy `.env.sample` to `.env` and fill in values for local development.
+
 ## Files
 
 | File | Responsibility |

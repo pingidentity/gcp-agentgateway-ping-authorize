@@ -27,6 +27,8 @@ src/
 
 ## Environment Variables
 
+Copy `.env.sample` to `.env` and fill in values. These are baked in at build time by Vite.
+
 | Variable | Description |
 |---|---|
 | `VITE_AIC_ISSUER` | PingOne AIC OAuth2 issuer URL |
@@ -34,3 +36,12 @@ src/
 | `VITE_REDIRECT_URI` | OAuth callback URL (e.g. `https://ping-store-chat-app.com/callback`) |
 | `VITE_SCOPES` | OAuth scopes (default: `openid profile email stripe_mcp:invoke`) |
 | `VITE_PING_STORE_AGENT_URL` | Agent backend URL (e.g. `https://ping-store-agent.com`) |
+
+## Deployment
+
+```bash
+cp .env.sample .env   # fill in values
+./deploy.sh
+```
+
+`deploy.sh` runs `npm ci`, `npm run build`, then rsyncs the built `dist/` folder to the configured EC2 host over SSH. Update the `EC2_HOST`, `EC2_USER`, and `REMOTE_DIR` variables at the top of the script for your environment.

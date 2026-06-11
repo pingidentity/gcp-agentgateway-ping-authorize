@@ -214,132 +214,40 @@ The MCP result travels back through the agent, which uses the LLM to generate a 
 
 ## Deployment
 
-### 1. Deploy ping-authz-shim
+### Services
 
-Trigger the Cloud Build pipeline from the repo root:
+Each service has its own README with deployment instructions and environment variables:
 
-```bash
-gcloud builds submit \
-  --config ingress-public-lb-mcp/deploy/gcp/cloudbuild.ping-authz-shim.yaml \
-  --substitutions \
-    _PING_AUTHORIZE_URL=https://your-ping-authorize.com/governance-engine,\
-    _MCP_SERVER_URL=https://your-mcp-lb.com,\
-    _MCP_REQUIRED_SCOPES="openid profile email stripe_mcp:invoke"
-```
+| Service | README |
+|---|---|
+| `ping-chat-ui-storefront` | [README](./ping-chat-ui-storefront/README.md) |
+| `ping-store-agent` | [README](./ping-store-agent/README.md) |
+| `ping-authz-shim` | [README](./ping-authz-shim/README.md) |
+| `stripe-mcp` | [README](./stripe-mcp/README.md) |
 
-Or configure a Cloud Build trigger pointed at `ingress-public-lb-mcp/deploy/gcp/cloudbuild.ping-authz-shim.yaml`.
+Deploy the services first, then configure the load balancer below.
 
-### 2. Deploy stripe-mcp
-
-Add your Stripe secret key to GCP Secret Manager:
-
-```bash
-echo -n "sk_live_..." | gcloud secrets create stripe-secret-key --data-file=-
-```
-
-Then trigger the pipeline:
-
-```bash
-gcloud builds submit \
-  --config ingress-public-lb-mcp/deploy/gcp/cloudbuild.stripe-mcp.yaml \
-  --substitutions \
-    _PINGONE_AIC_ISSUER=https://your-aic-issuer,\
-    _MCP_REQUIRED_SCOPES="stripe_mcp:invoke email"
-```
-
-### 3. Deploy ping-store-agent
-
-```bash
-cd ping-store-agent
-cp .env.sample .env   # fill in values
-docker build -t ping-store-agent .
-# Deploy to Cloud Run, GKE, or any container runtime
-```
-
-### 4. Deploy ping-chat-ui-storefront
-
-```bash
-cd ping-chat-ui-storefront
-cp .env.sample .env   # fill in Vite environment variables
-./deploy.sh           # builds and rsyncs to the configured EC2 host
-```
-
-### 5. Configure the Regional Load Balancer
+### Regional Load Balancer
 
 In the GCP console (or via `gcloud`):
 
-1. Create serverless NEGs pointing to `ping-authz-shim` and `stripe-mcp` Cloud Run services
-2. Create backend services for each NEG
-3. Provision the regional load balancer with a URL map and SSL certificate
-4. Create a Traffic Extension callout pointing to the `ping-authz-shim` backend service with **request body processing enabled**
-5. Attach the Traffic Extension to the load balancer's URL map
+1. **Create serverless NEGs** for the two Cloud Run services:
+   - `ping-authz-shim` NEG (region: `us-central1`)
+   - `stripe-mcp` NEG (region: `us-central1`)
 
----
+2. **Create backend services** pointing to each NEG:
+   - `ping-authz-shim-backend` — set protocol to HTTP/2 (required for gRPC)
+   - `stripe-mcp-backend`
 
-## Environment Variables
+3. **Provision a regional external Application Load Balancer** with:
+   - A URL map routing `/mcp` and `/.well-known/*` to `stripe-mcp-backend`
+   - An SSL certificate for your domain
+   - A static external IP
 
-### ping-authz-shim
+4. **Create a Traffic Extension** (Service Extension) callout:
+   - Point it at `ping-authz-shim-backend`
+   - Enable **request header processing** and **request body processing**
 
-See [`ping-authz-shim/.env.sample`](./ping-authz-shim/.env.sample).
+5. **Attach the Traffic Extension** to the load balancer's URL map on the `/mcp` route.
 
-| Variable | Description |
-|---|---|
-| `SHIM_SERVER_PORT` | gRPC listen port (default: `8080`) |
-| `PING_AUTHORIZE_URL` | PingAuthorize governance engine endpoint |
-| `MCP_SERVER_URL` | Load balancer URL — used in `WWW-Authenticate` response headers |
-| `PING_AUTHORIZE_SKIP_TLS_VERIFY` | Set `true` in dev to skip TLS verification to PingAuthorize |
-| `MCP_REQUIRED_SCOPES` | Scopes advertised in `WWW-Authenticate` for OAuth discovery |
-
-### stripe-mcp
-
-See [`stripe-mcp/.env.sample`](./stripe-mcp/.env.sample).
-
-| Variable | Description |
-|---|---|
-| `STRIPE_SECRET_KEY` | Stripe secret API key (injected from Secret Manager in Cloud Build) |
-| `PINGONE_AIC_ISSUER` | AIC issuer URL — used to resolve `/userinfo` endpoint |
-| `MCP_REQUIRED_SCOPES` | Scopes advertised in `/.well-known/` discovery endpoints |
-| `MCP_SERVER_PORT` | HTTP listen port (default: `8080`) |
-
-### ping-store-agent
-
-See [`ping-store-agent/.env.sample`](./ping-store-agent/.env.sample).
-
-| Variable | Description |
-|---|---|
-| `LB_URL` | Load balancer URL — where MCP requests are sent |
-| `CORS_ORIGIN_CHAT_UI_STOREFRONT` | Allowed CORS origin for the UI |
-| `PINGONE_AIC_ISSUER` | AIC issuer URL — used for JWKS and token endpoint discovery |
-| `AGENT_PORT` | Express listen port (default: `3000`) |
-| `AGENT_CLIENT_ID` | This agent's OAuth client ID |
-| `AGENT_CLIENT_SECRET` | This agent's OAuth client secret |
-| `AGENT_REQUIRED_SCOPES` | Scopes required on inbound subject tokens |
-| `OPENAI_MODEL` | OpenAI model (e.g., `gpt-4o`) |
-| `OPENAI_API_KEY` | OpenAI API key |
-
-### ping-chat-ui-storefront
-
-See [`ping-chat-ui-storefront/.env.sample`](./ping-chat-ui-storefront/.env.sample).
-
-Vite environment variables are baked in at build time.
-
-| Variable | Description |
-|---|---|
-| `VITE_AIC_ISSUER` | AIC issuer URL for PKCE flow |
-| `VITE_CLIENT_ID` | Public OIDC client ID for the UI |
-| `VITE_REDIRECT_URI` | OAuth callback URL (must match AIC client config) |
-| `VITE_SCOPES` | OAuth scopes requested during login |
-| `VITE_PING_STORE_AGENT_URL` | URL of the `ping-store-agent` backend |
-
----
-
-## Protocols & Standards
-
-| Protocol | Used By | Purpose |
-|---|---|---|
-| [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) | stripe-mcp, ping-store-agent | Tool interface between agent and MCP server |
-| [Envoy ext_proc](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter) | ping-authz-shim | gRPC-based request interception at the load balancer |
-| [OAuth 2.0 Authorization Code + PKCE (RFC 7636)](https://datatracker.ietf.org/doc/html/rfc7636) | ping-chat-ui-storefront | User authentication |
-| [OAuth 2.0 Token Exchange (RFC 8693)](https://datatracker.ietf.org/doc/html/rfc8693) | ping-store-agent | Delegated token for agent acting on behalf of user |
-| [OAuth 2.0 Protected Resource Metadata (RFC 9728)](https://datatracker.ietf.org/doc/html/rfc9728) | stripe-mcp | `/.well-known/oauth-protected-resource` discovery |
-| [OAuth 2.0 Authorization Server Metadata (RFC 8414)](https://datatracker.ietf.org/doc/html/rfc8414) | stripe-mcp | `/.well-known/oauth-authorization-server` discovery |
+After setup, all `/mcp` traffic from the internet hits the load balancer, which callouts to `ping-authz-shim` for a policy decision on every request before forwarding to `stripe-mcp`.

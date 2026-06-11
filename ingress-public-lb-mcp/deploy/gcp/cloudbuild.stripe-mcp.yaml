@@ -13,6 +13,7 @@ substitutions:
   _GCP_PROJECT_ID: tech-partner-ping
   _STRIPE_MCP_REPO: stripe-mcp-repo
   _SERVICE_NAME: stripe-mcp
+  _IMAGE_TAG: latest
   _PINGONE_AIC_ISSUER: https://openam-tntp-aiagents.forgeblocks.com:443/am/oauth2/alpha
   _MCP_REQUIRED_SCOPES: "stripe_mcp:invoke email"
 
@@ -22,14 +23,14 @@ steps:
     args:
       - build
       - -t
-      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_STRIPE_MCP_REPO}/stripe-mcp:${SHORT_SHA}
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_STRIPE_MCP_REPO}/stripe-mcp:${_IMAGE_TAG}
       - ingress-public-lb-mcp/stripe-mcp
 
   # Push the image to Artifact Registry.
   - name: gcr.io/cloud-builders/docker
     args:
       - push
-      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_STRIPE_MCP_REPO}/stripe-mcp:${SHORT_SHA}
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_STRIPE_MCP_REPO}/stripe-mcp:${_IMAGE_TAG}
 
   # Deploy to Cloud Run.
   # --ingress: only reachable via the load balancer, not the public internet.
@@ -42,7 +43,7 @@ steps:
       - deploy
       - ${_SERVICE_NAME}
       - --image
-      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_STRIPE_MCP_REPO}/stripe-mcp:${SHORT_SHA}
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_STRIPE_MCP_REPO}/stripe-mcp:${_IMAGE_TAG}
       - --region
       - ${_GCP_REGION}
       - --platform

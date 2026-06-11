@@ -2,7 +2,7 @@
 
 A proof of concept demonstrating centralized authorization for [MCP](https://modelcontextprotocol.io/) servers on GCP, using [PingAuthorize](https://docs.pingidentity.com/pingauthorize) as the policy decision point enforced at the network edge via [GCP's Traffic Extensions](https://cloud.google.com/service-extensions/docs/callouts-overview) and the Envoy [ext_proc](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter) protocol.
 
-The sample MCP server wraps the [Stripe API](https://docs.stripe.com/api) and runs behind a GCP Agent Gateway. Every inbound request is intercepted by an ext_proc service that parses the MCP request body, extracts the tool name and arguments, and calls PingAuthorize for a policy decision — all **before** the request reaches the MCP server.
+The sample MCP server wraps the [Stripe API](https://docs.stripe.com/api) and runs behind a GCP Regional Load Balancer. Every inbound request is intercepted by an ext_proc service that parses the MCP request body, extracts the tool name and arguments, and calls PingAuthorize for a policy decision — all **before** the request reaches the MCP server.
 
 ## Agent Types
 
@@ -57,14 +57,14 @@ Both architectures share the same authorization enforcement point — every requ
 
 ## Deployment
 
-Both core services run on **Cloud Run** behind a **GCP Agent Gateway** with Traffic Extensions enabled.
+Both core services run on **Cloud Run** behind a **GCP Regional Load Balancer** with Traffic Extensions enabled.
 
 1. Deploy `ping-authz-shim` and `stripe-mcp` to Cloud Run
 2. Create serverless NEGs and backend services for each
-3. Provision the Agent Gateway with a URL map, SSL certificate, and forwarding rule
+3. Provision the Regional Load Balancer with a URL map, SSL certificate, and forwarding rule
 4. Create a Traffic Extension callout pointing to the shim's backend service with request body processing enabled
-5. Attach the Traffic Extension to the Agent Gateway's URL map
+5. Attach the Traffic Extension to the Regional Load Balancer's URL map
 
-The delegated agent services (`ping-store-agent` and `ping-chat-ui-storefront`) run on separate infrastructure and communicate with the Agent Gateway over HTTPS.
+The delegated agent services (`ping-store-agent` and `ping-chat-ui-storefront`) run on separate infrastructure and communicate with the Regional Load Balancer over HTTPS.
 
-All Cloud Run services are configured with `--ingress internal-and-cloud-load-balancing` so they are only reachable through the Agent Gateway — direct requests from the public internet are blocked.
+All Cloud Run services are configured with `--ingress internal-and-cloud-load-balancing` so they are only reachable through the Regional Load Balancer — direct requests from the public internet are blocked.
