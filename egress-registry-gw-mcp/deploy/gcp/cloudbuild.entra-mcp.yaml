@@ -1,0 +1,82 @@
+# Cloud Build pipeline: entra-mcp
+#
+# Deploys the Microsoft Entra MCP server. This service wraps the Microsoft
+# Graph API and exposes it as an MCP server on /mcp.
+# After deploy it registers the service in GCP Agent Registry so the Agent
+# Gateway can route to it and so it appears in the console.
+#
+# Pipeline: Build image → Push to Artifact Registry → Deploy to Cloud Run
+#           → Register MCP server in GCP Agent Registry
+
+substitutions:
+  _GCP_REGION: us-central1
+  _GCP_PROJECT_ID: tech-partner-ping
+  _ENTRA_MCP_REPO: entra-mcp-repo
+  _SERVICE_NAME: entra-mcp
+  _REGISTRY_SERVICE_NAME: entra-mcp-server
+  _IMAGE_TAG: latest
+  _MCP_REQUIRED_SCOPES: "pingone:provisioning"
+
+steps:
+  # Build the Docker image.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_ENTRA_MCP_REPO}/${_SERVICE_NAME}:${_IMAGE_TAG}
+      - egress-registry-gw-mcp/entra-mcp
+
+  # Push the image to Artifact Registry.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_ENTRA_MCP_REPO}/${_SERVICE_NAME}:${_IMAGE_TAG}
+
+  # Deploy to Cloud Run.
+  # --ingress: internal — only reachable via the Agent Gateway.
+  # Azure credentials are stored in Secret Manager.
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE_NAME}
+      - --image
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_ENTRA_MCP_REPO}/${_SERVICE_NAME}:${_IMAGE_TAG}
+      - --region
+      - ${_GCP_REGION}
+      - --platform
+      - managed
+      - --ingress
+      - internal-and-cloud-load-balancing
+      - --allow-unauthenticated
+      - --set-env-vars
+      - MCP_SERVER_PORT=8080,MCP_REQUIRED_SCOPES=${_MCP_REQUIRED_SCOPES}
+      - --update-secrets
+      - AZURE_TENANT_ID=azure-tenant-id:latest,AZURE_CLIENT_ID=azure-client-id:latest,AZURE_CLIENT_SECRET=azure-client-secret:latest
+
+  # Register the MCP server in GCP Agent Registry with its tool definitions.
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        SERVICE_URL=$$(gcloud run services describe ${_SERVICE_NAME} \
+          --region=${_GCP_REGION} --project=${_GCP_PROJECT_ID} \
+          --format='value(status.url)')
+        echo "Registering ${_REGISTRY_SERVICE_NAME} at $$SERVICE_URL"
+        gcloud alpha agent-registry services create ${_REGISTRY_SERVICE_NAME} \
+          --project=${_GCP_PROJECT_ID} \
+          --location=${_GCP_REGION} \
+          --display-name="Microsoft Entra Provisioner MCP Server" \
+          --mcp-server-spec-type=tool-spec \
+          --mcp-server-spec-content=egress-registry-gw-mcp/deploy/gcp/toolspec.entra-mcp.json \
+          --interfaces="url=$$SERVICE_URL,protocolBinding=JSONRPC" \
+        || gcloud alpha agent-registry services update ${_REGISTRY_SERVICE_NAME} \
+             --project=${_GCP_PROJECT_ID} \
+             --location=${_GCP_REGION} \
+             --mcp-server-spec-content=egress-registry-gw-mcp/deploy/gcp/toolspec.entra-mcp.json \
+             --interfaces="url=$$SERVICE_URL,protocolBinding=JSONRPC"
+
+options:
+  logging: CLOUD_LOGGING_ONLY

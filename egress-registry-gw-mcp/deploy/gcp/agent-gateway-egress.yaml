@@ -1,0 +1,24 @@
+# Agent Gateway — Egress (Agent-to-Anywhere) configuration
+#
+# This gateway sits between the ping-provisioner-agent and the registered MCP
+# servers (pingone-aic-mcp-server, entra-mcp-server). Every MCP tools/call
+# request passes through the ping-authz-shim ext_proc service, which consults
+# PingAuthorize for an allow/deny decision before the call reaches the backend.
+#
+# Deploy with:
+#   gcloud alpha network-services agent-gateways import ping-authz-agent-gateway \
+#     --source=egress-registry-gw-mcp/deploy/gcp/agent-gateway-egress.yaml \
+#     --location=us-central1
+#
+# Replace PROJECT_ID with your GCP project ID before deploying.
+
+name: ping-authz-agent-gateway
+protocols:
+  - MCP
+googleManaged:
+  # AGENT_TO_ANYWHERE: agent egresses out to registered MCP servers/tools.
+  governedAccessPath: AGENT_TO_ANYWHERE
+registries:
+  # Points to the Agent Registry where pingone-aic-mcp-server and
+  # entra-mcp-server are registered.
+  - //agentregistry.googleapis.com/projects/tech-partner-ping/locations/us-central1

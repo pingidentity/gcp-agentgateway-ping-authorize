@@ -1,0 +1,63 @@
+# Cloud Build pipeline: ping-authz-shim (egress-registry-gw-mcp)
+#
+# Deploys the ext_proc authorization shim for the identity provisioning use case.
+# The internal load balancer calls this service via gRPC for every /mcp/* request.
+# It consults PingAuthorize with provisioning attributes (:path, mcp_tool_name,
+# mcp_email, mcp_username) before the request reaches the MCP backends.
+#
+# Modifications from UC1:
+#   - Accepts /mcp/pingone and /mcp/entra paths (not just /mcp)
+#   - Extracts provisioning attrs (email, username, enabled) for policy decisions
+#
+# Pipeline: Build image → Push to Artifact Registry → Deploy to Cloud Run
+
+substitutions:
+  _GCP_REGION: us-central1
+  _GCP_PROJECT_ID: tech-partner-ping
+  _PING_AUTHZ_SHIM_REPO: ping-authz-shim-repo
+  _SERVICE_NAME: ping-authz-shim-egress
+  _IMAGE_TAG: latest
+  _PING_AUTHORIZE_URL: https://ping-authorize-demo.com/governance-engine
+  _MCP_SERVER_URL: https://ping-gcp-agent-gateway.com
+  _PING_AUTHORIZE_SKIP_TLS_VERIFY: "false"
+  _MCP_REQUIRED_SCOPES: "pingone:provisioning"
+
+steps:
+  # Build the Docker image.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_PING_AUTHZ_SHIM_REPO}/${_SERVICE_NAME}:${_IMAGE_TAG}
+      - egress-registry-gw-mcp/ping-authz-shim
+
+  # Push the image to Artifact Registry.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_PING_AUTHZ_SHIM_REPO}/${_SERVICE_NAME}:${_IMAGE_TAG}
+
+  # Deploy to Cloud Run.
+  # --ingress: internal — only reachable via the load balancer traffic extension.
+  # --use-http2: required for gRPC (ext_proc protocol runs over HTTP/2).
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE_NAME}
+      - --image
+      - ${_GCP_REGION}-docker.pkg.dev/${_GCP_PROJECT_ID}/${_PING_AUTHZ_SHIM_REPO}/${_SERVICE_NAME}:${_IMAGE_TAG}
+      - --region
+      - ${_GCP_REGION}
+      - --platform
+      - managed
+      - --ingress
+      - internal-and-cloud-load-balancing
+      - --allow-unauthenticated
+      - --use-http2
+      - --set-env-vars
+      - SHIM_SERVER_PORT=8080,PING_AUTHORIZE_URL=${_PING_AUTHORIZE_URL},MCP_SERVER_URL=${_MCP_SERVER_URL},PING_AUTHORIZE_SKIP_TLS_VERIFY=${_PING_AUTHORIZE_SKIP_TLS_VERIFY},MCP_REQUIRED_SCOPES=${_MCP_REQUIRED_SCOPES}
+
+options:
+  logging: CLOUD_LOGGING_ONLY

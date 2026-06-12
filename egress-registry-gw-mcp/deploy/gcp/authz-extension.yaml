@@ -1,0 +1,30 @@
+# Authorization Extension — wires the ping-authz-shim Cloud Run service into
+# the Agent Gateway as a CONTENT_AUTHZ ext_proc callout.
+#
+# CONTENT_AUTHZ allows the shim to inspect the full MCP JSON-RPC request body
+# (tool name + arguments) and pass provisioning attributes to PingAuthorize
+# for a fine-grained allow/deny decision.
+#
+# Requirements on the ping-authz-shim service:
+#   - Must implement the Envoy ext_proc gRPC API
+#   - Must handle FULL_DUPLEX_STREAMED body events
+#   - Must be reachable from Agent Gateway via the service FQDN below
+#   - Agent Gateway uses HTTP2+TLS on port 443 (cert not validated; VPC DNS
+#     boundary provides security)
+#
+# Deploy with:
+#   gcloud beta service-extensions authz-extensions import ping-authz-ext \
+#     --source=egress-registry-gw-mcp/deploy/gcp/authz-extension.yaml \
+#     --location=us-central1
+#
+# Replace PING_AUTHZ_SHIM_FQDN with the Cloud Run *.run.app hostname of the
+# ping-authz-shim service (e.g. ping-authz-shim-xxxx-uc.a.run.app).
+
+name: ping-authz-ext
+# FQDN of the ping-authz-shim Cloud Run service.
+# Retrieve after deploy: gcloud run services describe ping-authz-shim-egress \
+#   --region=us-central1 --format='value(status.url)' | sed 's|https://||'
+service: PING_AUTHZ_SHIM_FQDN
+failOpen: false
+timeout: 5s
+# wireFormat is omitted for CONTENT_AUTHZ — ext_proc is the implicit wire protocol.

@@ -1,0 +1,37 @@
+# Authorization Policy — attaches the ping-authz-shim ext_proc extension to the
+# Agent Gateway and routes all MCP traffic through PingAuthorize.
+#
+# policyProfile: CONTENT_AUTHZ
+#   The shim receives full request headers + body. It can inspect:
+#     - Authorization: Bearer <token>   — agent identity
+#     - :path                           — /mcp/pingone or /mcp/entra (target tenant)
+#     - MCP JSON-RPC body               — method, tool name, arguments
+#                                         (mcp_email, mcp_username, mcp_enabled)
+#
+# PingAuthorize policies can then enforce:
+#   - "Agent can provision in AIC but not Entra" (check :path)
+#   - "Deny deprovision_user unless agent has elevated scope"
+#   - "Allow list_users freely; require specific claims for provision_user"
+#
+# Deploy with:
+#   gcloud beta network-security authz-policies import ping-authz-policy \
+#     --source=egress-registry-gw-mcp/deploy/gcp/authz-policy.yaml \
+#     --location=us-central1
+#
+# Replace PROJECT_ID with your GCP project ID before deploying.
+
+name: ping-authz-policy
+target:
+  resources:
+    - "projects/tech-partner-ping/locations/us-central1/agentGateways/ping-authz-agent-gateway"
+policyProfile: CONTENT_AUTHZ
+action: CUSTOM
+customProvider:
+  authzExtension:
+    resources:
+      - "projects/tech-partner-ping/locations/us-central1/authzExtensions/ping-authz-ext"
+httpRules:
+  - to:
+      operations:
+        - paths:
+            - prefix: "/"
