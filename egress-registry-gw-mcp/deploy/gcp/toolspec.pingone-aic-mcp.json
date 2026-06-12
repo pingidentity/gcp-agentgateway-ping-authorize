@@ -1,0 +1,104 @@
+{
+  "tools": [
+    {
+      "name": "provision_user",
+      "description": "Creates a new user account in PingOne AIC (ForgeRock Identity Cloud). Requires username, email, first_name, last_name, and password.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Login username for the new account"
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address of the new user"
+          },
+          "first_name": {
+            "type": "string",
+            "description": "User's first name"
+          },
+          "last_name": {
+            "type": "string",
+            "description": "User's last name"
+          },
+          "password": {
+            "type": "string",
+            "description": "Initial password for the new account"
+          }
+        },
+        "required": ["username", "email", "first_name", "last_name", "password"]
+      },
+      "annotations": {
+        "title": "Provision User",
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "deprovision_user",
+      "description": "Permanently deletes a user account from PingOne AIC. Looks up the user by email and removes the account.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address of the user to delete"
+          }
+        },
+        "required": ["email"]
+      },
+      "annotations": {
+        "title": "Deprovision User",
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "update_user_status",
+      "description": "Enables or disables an existing user account in PingOne AIC. Looks up the user by email and sets the enabled flag.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address of the user to update"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Set to true to enable the account, false to disable"
+          }
+        },
+        "required": ["email", "enabled"]
+      },
+      "annotations": {
+        "title": "Update User Status",
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "list_users",
+      "description": "Lists or searches user accounts in PingOne AIC. Accepts an optional filter string (OpenIDM _queryFilter syntax). Returns up to 50 results.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "description": "Optional OpenIDM _queryFilter expression, e.g. 'mail eq \"alice@example.com\"'"
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List Users",
+        "readOnlyHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    }
+  ]
+}

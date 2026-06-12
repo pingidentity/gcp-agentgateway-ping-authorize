@@ -1,70 +1,64 @@
 # GCP Agent Gateway + PingAuthorize
 
-A proof of concept demonstrating centralized authorization for [MCP](https://modelcontextprotocol.io/) servers on GCP, using [PingAuthorize](https://docs.pingidentity.com/pingauthorize) as the policy decision point enforced at the network edge via [GCP's Traffic Extensions](https://cloud.google.com/service-extensions/docs/callouts-overview) and the Envoy [ext_proc](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter) protocol.
+Reference implementations demonstrating how **GCP Agent Gateway** and **PingAuthorize** can enforce fine-grained policy on AI agent tool calls — intercepting every MCP `tools/call` before it reaches a backend service.
 
-The sample MCP server wraps the [Stripe API](https://docs.stripe.com/api) and runs behind a GCP Regional Load Balancer. Every inbound request is intercepted by an ext_proc service that parses the MCP request body, extracts the tool name and arguments, and calls PingAuthorize for a policy decision — all **before** the request reaches the MCP server.
+Two distinct use cases are provided, covering the two primary Agent Gateway modes.
 
-## Agent Types
+---
 
-This project supports two distinct agent architectures, each with its own authentication and authorization flow. See the dedicated documentation for details on how each works:
+## Use Case 1 — Ingress: AI Shopping Agent
 
-| Architecture | Description | Documentation |
+**Directory:** [`ingress-public-lb-mcp/`](./ingress-public-lb-mcp/)
+
+A consumer-facing storefront where an authenticated user converses with an AI shopping assistant. The agent acts on behalf of the user via RFC 8693 token exchange, and every Stripe tool call is authorized by PingAuthorize before execution.
+
+**Flow:**
+```
+Browser (React UI)
+  → ping-store-agent (Strands AI, Cloud Run)
+    → GCP Regional Load Balancer (Traffic Extension / ext_proc)
+      → ping-authz-shim → PingAuthorize → PERMIT / DENY
+        → stripe-mcp (Cloud Run)
+```
+
+**Key characteristics:**
+- User authenticates via PingOne AIC (Authorization Code + PKCE)
+- Agent performs RFC 8693 token exchange to produce a delegated token carrying both user and agent identity
+- PingAuthorize receives the delegated token, tool name, and payment arguments on every call
+- `stripe-mcp` is internal-only — unreachable without passing through the load balancer and policy check
+
+---
+
+## Use Case 2 — Egress: Identity Provisioning Agent
+
+**Directory:** [`egress-registry-gw-mcp/`](./egress-registry-gw-mcp/)
+
+A machine-to-machine provisioning system where an AI agent manages user accounts across two identity systems. The agent and both MCP servers are registered in **GCP Agent Registry**. The Agent Gateway (egress / Agent-to-Anywhere mode) sits in the call path, routing all agent-to-MCP traffic through PingAuthorize.
+
+**Flow:**
+```
+ping-provisioner-agent (ADK Python / Gemini, Cloud Run)
+  → GCP Agent Gateway — ping-authz-agent-gateway (egress, AGENT_TO_ANYWHERE)
+    → ping-authz-shim (CONTENT_AUTHZ ext_proc) → PingAuthorize → PERMIT / DENY
+      → pingone-aic-mcp (ForgeRock AIC REST API)
+      → entra-mcp (Microsoft Graph API)
+```
+
+**Key characteristics:**
+- No human in the loop — agent is invoked via `POST /provision` with a natural language instruction
+- Agent and MCP servers are visible in GCP Agent Registry (Vertex AI console)
+- PingAuthorize can enforce policies such as "deny `deprovision_user` unless agent is in approved-deprovisioners" or "block provisioning to domains not on an allowlist"
+- Both identity backends expose the same four MCP tools (`provision_user`, `deprovision_user`, `update_user_status`, `list_users`), routed by the agent based on the instruction
+
+---
+
+## Common Pattern
+
+Both use cases enforce policy via the same mechanism — a `ping-authz-shim` gRPC service attached to the network control plane at different layers:
+
+| Use Case | Control Plane | Shim Attachment |
 |---|---|---|
-| **Delegated Agent** | A backend service acts on behalf of a user via [RFC 8693](https://datatracker.ietf.org/doc/html/rfc8693) token exchange with delegation. The delegated token carries both the user's identity and the agent's identity. | [→ Delegated Agent](_docs/delegated-agent.md) |
-| **Attended Agent** | An MCP-aware client (e.g., Claude Desktop) connects directly to the Agent Gateway, handling OAuth discovery and token acquisition itself. | [→ Attended Agent](_docs/attended-agent.md) |
+| UC1 — Ingress | GCP Regional Load Balancer | Traffic Extension (ext_proc callout on the URL map) |
+| UC2 — Egress | GCP Agent Gateway | CONTENT_AUTHZ authz extension + authz policy |
 
-Both architectures share the same authorization enforcement point — every request passes through `ping-authz-shim`, which consults PingAuthorize before allowing access to the MCP server.
-
-## Services
-
-| Service | Description |
-|---|---|
-| [`ping-authz-shim`](./ingress-public-lb-mcp/ping-authz-shim/) | Envoy ext_proc shim — intercepts every request, parses MCP payloads, and consults PingAuthorize for a policy decision |
-| [`stripe-mcp`](./ingress-public-lb-mcp/stripe-mcp/) | MCP server exposing Stripe tools (product catalog, customer lookup, payments) |
-| [`ping-store-agent`](./ingress-public-lb-mcp/ping-store-agent/) | Delegated agent backend — handles user sessions, token exchange, and MCP tool invocation |
-| [`ping-chat-ui-storefront`](./ingress-public-lb-mcp/ping-chat-ui-storefront/) | Chat UI front-end — user authentication and conversation interface |
-
-## Repository Structure
-
-```
-├── ingress-public-lb-mcp/      # Use Case 1: Public internet → Regional LB → Cloud Run MCP
-│   ├── ping-authz-shim/        # ext_proc authorization shim (Go, gRPC)
-│   ├── stripe-mcp/             # MCP server with Stripe tools (Go, HTTP)
-│   ├── ping-store-agent/       # Delegated agent backend (TypeScript, Express)
-│   ├── ping-chat-ui-storefront/# Chat UI front-end (React, Vite)
-│   └── deploy/gcp/             # Cloud Build configs
-├── egress-registry-gw-mcp/     # Use Case 2: Agent Registry → Agent Gateway (Egress) → MCP Servers
-├── egress-gemini-enterprise/   # Use Case 3: Gemini Enterprise → Agent Gateway (Egress) → Ping policy
-└── _docs/                      # Architecture documentation
-```
-
-## Protocols & Standards
-
-- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) — tool interface between agent and server
-- [Envoy ext_proc](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter) — external processing filter for request-level auth decisions
-- [OAuth 2.0 Token Exchange (RFC 8693)](https://datatracker.ietf.org/doc/html/rfc8693) — delegation token exchange for agent-on-behalf-of-user
-- [OAuth 2.0 Protected Resource Metadata (RFC 9728)](https://datatracker.ietf.org/doc/html/rfc9728) — resource server discovery
-- [OAuth 2.0 Authorization Server Metadata (RFC 8414)](https://datatracker.ietf.org/doc/html/rfc8414) — authorization server discovery
-- [OAuth 2.0 Dynamic Client Registration (RFC 7591)](https://datatracker.ietf.org/doc/html/rfc7591) — agent self-registration
-- [PKCE (RFC 7636)](https://datatracker.ietf.org/doc/html/rfc7636) — proof key for code exchange
-
-## Prerequisites
-
-- **GCP project** with Cloud Run, Cloud Load Balancing, and Service Extensions APIs enabled
-- **Stripe account** with a [secret API key](https://docs.stripe.com/keys) and at least one customer with a payment method on file — the customer's email must match the user's email in PingOne AIC
-- **PingOne AIC tenant** configured as the OAuth 2.0 authorization server with Dynamic Client Registration enabled, token exchange grants, and a `may_act` script for delegation
-- **PingAuthorize** deployed on a GCE VM in the same GCP project, behind a GCP load balancer with a Google-managed SSL certificate
-
-## Deployment
-
-Both core services run on **Cloud Run** behind a **GCP Regional Load Balancer** with Traffic Extensions enabled.
-
-1. Deploy `ping-authz-shim` and `stripe-mcp` to Cloud Run
-2. Create serverless NEGs and backend services for each
-3. Provision the Regional Load Balancer with a URL map, SSL certificate, and forwarding rule
-4. Create a Traffic Extension callout pointing to the shim's backend service with request body processing enabled
-5. Attach the Traffic Extension to the Regional Load Balancer's URL map
-
-The delegated agent services (`ping-store-agent` and `ping-chat-ui-storefront`) run on separate infrastructure and communicate with the Regional Load Balancer over HTTPS.
-
-All Cloud Run services are configured with `--ingress internal-and-cloud-load-balancing` so they are only reachable through the Regional Load Balancer — direct requests from the public internet are blocked.
+In both cases, `ping-authz-shim` parses the MCP JSON-RPC body, extracts the token and tool arguments, and calls PingAuthorize for a `PERMIT` or `DENY` decision on every `tools/call`.
