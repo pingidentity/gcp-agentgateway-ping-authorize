@@ -7,24 +7,46 @@ ingress-public-lb-mcp/ping-authz-shim/ping-authz-shim
 egress-registry-gw-mcp/entra-mcp/entra-mcp
 egress-registry-gw-mcp/pingone-aic-mcp/pingone-aic-mcp
 egress-registry-gw-mcp/ping-authz-shim/ping-authz-shim
+egress-registry-gw-mcp/ping-provisioner-agent-gw/ping-provisioner-agent-gw
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.venv/
+venv/
+*.egg-info/
+.python-version
 
 # Node
 node_modules/
 dist/
+.vite/
+*.tsbuildinfo
+
+# Go build cache
+vendor/
 
 # OS/editor noise
 .DS_Store
+.DS_Store?
+Thumbs.db
+.idea/
+.vscode/
 
 # Common runtime/test artifacts
 *.log
 coverage.out
 *.bak
+*.tmp
 
-# Secrets
+# Secrets — never commit credentials
 .env
+.env.local
+.env.*.local
+*.pem
+*.key
+service-account*.json
+gcp-credentials*.json
+application_default_credentials.json
