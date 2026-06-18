@@ -1,8 +1,11 @@
 # Gemini Enterprise Agent Platform + PingAuthorize
 
-Reference implementations demonstrating how **PingAuthorize** enforces fine-grained policy on AI agent tool calls within the **Gemini Enterprise Agent Platform** — intercepting every MCP `tools/call` before it reaches a backend service.
+Reference implementations showing how [**PingAuthorize**](https://www.pingidentity.com/en/product/pingauthorize.html) enforces fine-grained
+policy on AI agent MCP tool calls — intercepting every `tools/call` before it
+reaches a backend service.
 
-Two use cases are provided: a consumer-facing ingress pattern using the GCP Regional Load Balancer, and a machine-to-machine egress pattern using the GCP Agent Gateway.
+Two patterns are provided: an **ingress** pattern using the GCP Regional Load
+Balancer, and an **egress** pattern using the GCP Agent Gateway.
 
 ---
 
@@ -10,22 +13,23 @@ Two use cases are provided: a consumer-facing ingress pattern using the GCP Regi
 
 **Directory:** [`ingress-public-lb-mcp/`](./ingress-public-lb-mcp/)
 
-A consumer-facing storefront where an authenticated user converses with an AI shopping assistant. The agent acts on behalf of the user via RFC 8693 token exchange, and every Stripe tool call is authorized by PingAuthorize before execution.
+A consumer-facing storefront where an authenticated user converses with an AI
+shopping assistant. The agent acts on behalf of the user via RFC 8693 token
+exchange; every Stripe tool call is authorized by PingAuthorize before
+execution.
 
-**Flow:**
-```
-Browser (React UI)
-  → ping-store-agent (Strands AI, external — runs outside GCP)
-    → GCP Regional Load Balancer (Traffic Extension / ext_proc)
-      → ping-authz-shim → PingAuthorize → PERMIT / DENY
-        → stripe-mcp (Cloud Run)
-```
+![](./_docs/ingress_lb_diagram.png)
+
+**How it works:**
+1. User logs in via PingOne AIC (PKCE). The access token contains a `may_act` claim granting the agent permission to act on their behalf.
+2. UI sends the user token to `ping-store-agent`, which validates it and performs RFC 8693 token exchange — producing a delegated token that carries both user and agent identity.
+3. The Strands AI agent calls MCP tools through the GCP Regional Load Balancer.
+4. The load balancer's Traffic Extension calls `lb-ping-authz-shim` via gRPC. The shim extracts the token, tool name, and payment arguments, then calls PingAuthorize for a PERMIT/DENY decision.
+5. Permitted requests reach `lb-stripe-mcp`; denied requests receive a 403 — `stripe-mcp` never sees them.
 
 **Key characteristics:**
-- User authenticates via PingOne AIC (Authorization Code + PKCE)
-- Agent performs RFC 8693 token exchange to produce a delegated token carrying both user and agent identity
-- PingAuthorize receives the delegated token, tool name, and payment arguments on every call
-- `stripe-mcp` is internal-only — unreachable without passing through the load balancer and policy check
+- `lb-stripe-mcp` and `lb-ping-authz-shim` are internal-only — unreachable without passing through the load balancer
+- PingAuthorize receives the delegated token plus tool arguments (product ID, quantity, total price) on every call, enabling attribute-based payment authorization
 
 ---
 
@@ -33,36 +37,39 @@ Browser (React UI)
 
 **Directory:** [`egress-registry-gw-mcp/`](./egress-registry-gw-mcp/)
 
-A React chat UI lets administrators provision user accounts across PingOne AIC and Microsoft Entra by conversing with a Gemini AI agent. The agent runs in **Vertex AI Agent Runtime**; the browser authenticates with AIC via OIDC and exchanges the token for a Google federated credential (WIF) to call the Agent Runtime directly — no Cloud Run proxy. Every MCP tool call routes through the **GCP Agent Gateway** and is authorized by PingAuthorize before reaching a backend.
+A React chat UI lets administrators provision user accounts across PingOne AIC
+and Microsoft Entra by conversing with a Gemini AI agent. The agent runs in
+**Vertex AI Agent Runtime**; every MCP tool call routes through the **GCP
+Agent Gateway** and is authorized by PingAuthorize before reaching a backend.
 
-**Flow:**
-```
-Browser (React UI)
-  → WIF token exchange (AIC OIDC → Google federated token)
-    → Vertex AI Agent Runtime (ADK LlmAgent / Gemini)
-      → RFC 8693 token exchange (raw UI token → delegated token)
-        → GCP Agent Gateway — ping-authz-agent-gateway (AGENT_TO_ANYWHERE)
-          → gw-ping-authz-shim (CONTENT_AUTHZ ext_proc) → PingAuthorize → PERMIT / DENY
-            → gw-pingone-aic-mcp (ForgeRock AIC REST API)
-            → gw-entra-mcp (Microsoft Graph API)
-```
+![](./_docs/egress_gw_diagram.png)
+
+**How it works:**
+1. User logs in via PingOne AIC (PKCE). The UI exchanges the AIC OIDC token for a Google federated credential via **Workload Identity Federation** (Google STS).
+2. The browser uses the Google token to call Vertex AI Agent Runtime directly — no Cloud Run proxy.
+3. The raw AIC token is passed into the session state. The agent's `header_provider` performs **RFC 8693 token exchange** before each MCP call, producing a delegated token (sub=user, act.sub=agent).
+4. MCP calls route through the **GCP Agent Gateway** (AGENT_TO_ANYWHERE mode), which calls `gw-ping-authz-shim` via ext_proc.
+5. The shim sends the delegated token, tool name, and provisioning arguments to PingAuthorize. Permitted calls reach the MCP backend; denied calls are rejected.
 
 **Key characteristics:**
-- Browser calls Vertex AI Agent Runtime directly via Workload Identity Federation — no intermediate Cloud Run proxy
-- Agent performs RFC 8693 token exchange before each MCP call, producing a delegated token that carries both user and agent identity
+- Browser authenticates to Vertex AI directly via WIF — no intermediate service
 - Agent and MCP servers are registered in GCP Agent Registry (visible in Vertex AI console)
-- PingAuthorize can enforce policies such as "deny `deprovision_user` unless agent is in approved-deprovisioners" or "block provisioning to domains not on an allowlist"
-- Both identity backends expose the same four MCP tools (`provision_user`, `deprovision_user`, `update_user_status`, `list_users`)
+- PingAuthorize receives the full delegated identity (user + agent) on every call, enabling policies like "deny `deprovision_user` unless agent is in approved-deprovisioners"
 
 ---
 
 ## Common Pattern
 
-Both use cases enforce policy via the same mechanism — a `ping-authz-shim` gRPC service attached to the network control plane at different layers:
+Both use cases share the same enforcement mechanism — a `ping-authz-shim`
+gRPC service attached to the network control plane:
 
-| Use Case | Control Plane | Shim Attachment |
+| | UC1 — Ingress | UC2 — Egress |
 |---|---|---|
-| UC1 — Ingress | GCP Regional Load Balancer | Traffic Extension (ext_proc callout on the URL map) |
-| UC2 — Egress | GCP Agent Gateway | CONTENT_AUTHZ authz extension + authz policy |
+| **Control plane** | GCP Regional Load Balancer | GCP Agent Gateway |
+| **Shim attachment** | Traffic Extension (ext_proc on URL map) | CONTENT_AUTHZ authz extension + policy |
+| **Token flow** | RFC 8693 in agent backend | RFC 8693 inside Agent Runtime |
+| **Identity federation** | PingOne AIC only | PingOne AIC → WIF → Google STS |
 
-In both cases, `ping-authz-shim` parses the MCP JSON-RPC body, extracts the token and tool arguments, and calls PingAuthorize for a `PERMIT` or `DENY` decision on every `tools/call`.
+In both cases, `ping-authz-shim` parses the MCP JSON-RPC body, extracts the
+bearer token and tool arguments, and calls PingAuthorize for a `PERMIT` or
+`DENY` decision on every `tools/call`.
