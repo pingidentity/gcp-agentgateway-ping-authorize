@@ -122,9 +122,9 @@ printf "value" | gcloud secrets create exchange-client-secret --data-file=- --pr
 
 ```bash
 # From repo root:
-gcloud builds submit --config egress-registry-gw-mcp/deploy/gcp/cloudbuild.ping-authz-shim.yaml .
-gcloud builds submit --config egress-registry-gw-mcp/deploy/gcp/cloudbuild.pingone-aic-mcp.yaml .
-gcloud builds submit --config egress-registry-gw-mcp/deploy/gcp/cloudbuild.entra-mcp.yaml .
+gcloud builds submit --config egress-registry-gw-mcp/deploy/gcp/cloudbuild/ping-authz-shim.yaml .
+gcloud builds submit --config egress-registry-gw-mcp/deploy/gcp/cloudbuild/pingone-aic-mcp.yaml .
+gcloud builds submit --config egress-registry-gw-mcp/deploy/gcp/cloudbuild/entra-mcp.yaml .
 ```
 
 ### Step 2 — Set up Agent Registry and Agent Gateway
@@ -209,16 +209,17 @@ egress-registry-gw-mcp/
 ├── entra-mcp/                  # Go MCP → Microsoft Graph API
 ├── ping-authz-shim/            # Go ext_proc shim → PingAuthorize
 └── deploy/gcp/
-    ├── deploy_agent.py                       # Deploy agent to Vertex AI Agent Runtime
-    ├── grant_egressor_iam.py                 # Grant AGENT_IDENTITY egress IAM
-    ├── setup-agent-registry.sh              # Agent Registry + Agent Gateway setup
-    ├── cloudbuild.ping-authz-shim.yaml
-    ├── cloudbuild.pingone-aic-mcp.yaml
-    ├── cloudbuild.entra-mcp.yaml
-    ├── cloudbuild.ping-provisioner-agent.yaml
-    ├── toolspec.pingone-aic-mcp.json         # Agent Registry tool definitions
+    ├── deploy_agent.py                  # Deploy agent to Vertex AI Agent Runtime
+    ├── grant_egressor_iam.py            # Grant AGENT_IDENTITY egress IAM
+    ├── setup-agent-registry.sh         # Agent Registry + Agent Gateway setup
+    ├── agent-gateway-egress.yaml        # Agent Gateway (egress) resource config
+    ├── authz-extension.yaml             # CONTENT_AUTHZ ext_proc extension config
+    ├── authz-policy.yaml                # Authz policy attaching shim to gateway
+    ├── toolspec.pingone-aic-mcp.json    # Agent Registry tool definitions
     ├── toolspec.entra-mcp.json
-    ├── agent-gateway-egress.yaml             # Agent Gateway (egress) config
-    ├── authz-extension.yaml                  # CONTENT_AUTHZ ext_proc extension
-    └── authz-policy.yaml                     # Authz policy → attaches shim to gateway
+    └── cloudbuild/                      # Cloud Build pipelines (one per service)
+        ├── ping-authz-shim.yaml
+        ├── pingone-aic-mcp.yaml
+        ├── entra-mcp.yaml
+        └── ping-provisioner-agent.yaml
 ```

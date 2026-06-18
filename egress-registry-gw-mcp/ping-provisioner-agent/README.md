@@ -48,7 +48,7 @@ python main.py
 
 ```bash
 gcloud builds submit \
-  --config egress-registry-gw-mcp/deploy/gcp/cloudbuild.ping-provisioner-agent.yaml .
+  --config egress-registry-gw-mcp/deploy/gcp/cloudbuild/ping-provisioner-agent.yaml .
 ```
 
 For Agent Runtime deployment (production), see `deploy/gcp/deploy_agent.py`.
