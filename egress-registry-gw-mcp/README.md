@@ -122,9 +122,9 @@ printf "value" | gcloud secrets create exchange-client-secret --data-file=- --pr
 
 ```bash
 # From repo root:
-gcloud builds submit --config egress-registry-gw-mcp/deploy/gcp/cloudbuild/ping-authz-shim.yaml .
-gcloud builds submit --config egress-registry-gw-mcp/deploy/gcp/cloudbuild/pingone-aic-mcp.yaml .
-gcloud builds submit --config egress-registry-gw-mcp/deploy/gcp/cloudbuild/entra-mcp.yaml .
+gcloud builds submit --config egress-registry-gw-mcp/ping-authz-shim/cloudbuild.yaml .
+gcloud builds submit --config egress-registry-gw-mcp/pingone-aic-mcp/cloudbuild.yaml .
+gcloud builds submit --config egress-registry-gw-mcp/entra-mcp/cloudbuild.yaml .
 ```
 
 ### Step 2 — Set up Agent Registry and Agent Gateway
@@ -204,11 +204,15 @@ Example policies:
 egress-registry-gw-mcp/
 ├── README.md
 ├── ping-provisioner-agent/     # ADK Python + FastAPI (Cloud Run version)
+│   └── cloudbuild.yaml
 ├── ping-provisioner-ui/        # React UI — WIF + Vertex AI Agent Runtime
 ├── pingone-aic-mcp/            # Go MCP → PingOne AIC REST API
+│   └── cloudbuild.yaml
 ├── entra-mcp/                  # Go MCP → Microsoft Graph API
+│   └── cloudbuild.yaml
 ├── ping-authz-shim/            # Go ext_proc shim → PingAuthorize
-└── deploy/gcp/
+│   └── cloudbuild.yaml
+└── deploy/gcp/                 # Infra-level deploy scripts and resource configs
     ├── deploy_agent.py                  # Deploy agent to Vertex AI Agent Runtime
     ├── grant_egressor_iam.py            # Grant AGENT_IDENTITY egress IAM
     ├── setup-agent-registry.sh         # Agent Registry + Agent Gateway setup
@@ -216,10 +220,5 @@ egress-registry-gw-mcp/
     ├── authz-extension.yaml             # CONTENT_AUTHZ ext_proc extension config
     ├── authz-policy.yaml                # Authz policy attaching shim to gateway
     ├── toolspec.pingone-aic-mcp.json    # Agent Registry tool definitions
-    ├── toolspec.entra-mcp.json
-    └── cloudbuild/                      # Cloud Build pipelines (one per service)
-        ├── ping-authz-shim.yaml
-        ├── pingone-aic-mcp.yaml
-        ├── entra-mcp.yaml
-        └── ping-provisioner-agent.yaml
+    └── toolspec.entra-mcp.json
 ```

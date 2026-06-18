@@ -57,5 +57,5 @@ go run .
 
 ```bash
 gcloud builds submit \
-  --config egress-registry-gw-mcp/deploy/gcp/cloudbuild/ping-authz-shim.yaml .
+  --config egress-registry-gw-mcp/ping-authz-shim/cloudbuild.yaml .
 ```

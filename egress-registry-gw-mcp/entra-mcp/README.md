@@ -55,7 +55,7 @@ go run .
 
 ```bash
 gcloud builds submit \
-  --config egress-registry-gw-mcp/deploy/gcp/cloudbuild/entra-mcp.yaml .
+  --config egress-registry-gw-mcp/entra-mcp/cloudbuild.yaml .
 ```
 
 ## Azure App Registration Setup

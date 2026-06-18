@@ -52,7 +52,7 @@ go run .
 
 ```bash
 gcloud builds submit \
-  --config egress-registry-gw-mcp/deploy/gcp/cloudbuild/pingone-aic-mcp.yaml .
+  --config egress-registry-gw-mcp/pingone-aic-mcp/cloudbuild.yaml .
 ```
 
 ## AIC Admin Client Setup
