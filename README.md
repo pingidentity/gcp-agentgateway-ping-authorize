@@ -1,11 +1,8 @@
 # Gemini Enterprise Agent Platform + PingAuthorize
 
-Reference implementations showing how [**PingAuthorize**](https://www.pingidentity.com/en/product/pingauthorize.html) enforces fine-grained
-policy on AI agent MCP tool calls — intercepting every `tools/call` before it
-reaches a backend service.
+AI agents can invoke tools with real-world consequences — charging a payment card, provisioning an account, modifying a record. These reference implementations show how to put [**PingAuthorize**](https://www.pingidentity.com/en/product/pingauthorize.html) in the call path so every MCP `tools/call` is authorized by policy before it reaches a backend, regardless of which agent issued it.
 
-Two patterns are provided: an **ingress** pattern using the GCP Regional Load
-Balancer, and an **egress** pattern using the GCP Agent Gateway.
+Both patterns run on **Google Cloud** — agents on Vertex AI, MCP servers and authorization shims on Cloud Run — with PingOne AIC handling identity and PingAuthorize enforcing policy. Two network enforcement points are covered: **ingress** via GCP Regional Load Balancer for a consumer shopping agent, and **egress** via GCP Agent Gateway for an enterprise identity provisioning agent.
 
 ---
 
