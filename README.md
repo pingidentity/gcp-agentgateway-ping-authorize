@@ -33,22 +33,26 @@ Browser (React UI)
 
 **Directory:** [`egress-registry-gw-mcp/`](./egress-registry-gw-mcp/)
 
-A machine-to-machine provisioning system where an AI agent manages user accounts across two identity systems. The agent and both MCP servers are registered in **GCP Agent Registry**. The Agent Gateway (egress / Agent-to-Anywhere mode) sits in the call path, routing all agent-to-MCP traffic through PingAuthorize.
+A React chat UI lets administrators provision user accounts across PingOne AIC and Microsoft Entra by conversing with a Gemini AI agent. The agent runs in **Vertex AI Agent Runtime**; the browser authenticates with AIC via OIDC and exchanges the token for a Google federated credential (WIF) to call the Agent Runtime directly — no Cloud Run proxy. Every MCP tool call routes through the **GCP Agent Gateway** and is authorized by PingAuthorize before reaching a backend.
 
 **Flow:**
 ```
-ping-provisioner-agent (ADK Python / Gemini, Cloud Run)
-  → GCP Agent Gateway — ping-authz-agent-gateway (egress, AGENT_TO_ANYWHERE)
-    → ping-authz-shim (CONTENT_AUTHZ ext_proc) → PingAuthorize → PERMIT / DENY
-      → pingone-aic-mcp (ForgeRock AIC REST API)
-      → entra-mcp (Microsoft Graph API)
+Browser (React UI)
+  → WIF token exchange (AIC OIDC → Google federated token)
+    → Vertex AI Agent Runtime (ADK LlmAgent / Gemini)
+      → RFC 8693 token exchange (raw UI token → delegated token)
+        → GCP Agent Gateway — ping-authz-agent-gateway (AGENT_TO_ANYWHERE)
+          → gw-ping-authz-shim (CONTENT_AUTHZ ext_proc) → PingAuthorize → PERMIT / DENY
+            → gw-pingone-aic-mcp (ForgeRock AIC REST API)
+            → gw-entra-mcp (Microsoft Graph API)
 ```
 
 **Key characteristics:**
-- No human in the loop — agent is invoked via `POST /provision` with a natural language instruction
-- Agent and MCP servers are visible in GCP Agent Registry (Vertex AI console)
+- Browser calls Vertex AI Agent Runtime directly via Workload Identity Federation — no intermediate Cloud Run proxy
+- Agent performs RFC 8693 token exchange before each MCP call, producing a delegated token that carries both user and agent identity
+- Agent and MCP servers are registered in GCP Agent Registry (visible in Vertex AI console)
 - PingAuthorize can enforce policies such as "deny `deprovision_user` unless agent is in approved-deprovisioners" or "block provisioning to domains not on an allowlist"
-- Both identity backends expose the same four MCP tools (`provision_user`, `deprovision_user`, `update_user_status`, `list_users`), routed by the agent based on the instruction
+- Both identity backends expose the same four MCP tools (`provision_user`, `deprovision_user`, `update_user_status`, `list_users`)
 
 ---
 
