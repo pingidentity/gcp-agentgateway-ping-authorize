@@ -1,47 +1,50 @@
-# Ping Chat UI Storefront
+# ping-chat-ui-storefront
 
-React SPA that authenticates users via PingOne AIC (PKCE) and provides a chat interface to the [ping-store-agent](../ping-store-agent) backend.
+React SPA that authenticates users via PingOne AIC (PKCE) and provides a
+chat interface to `ping-store-agent`.
 
 ## Token Flow
 
 ```
 User → AIC login (PKCE) → access token (with may_act claim)
-     → sent to ping-store-agent → token exchange (RFC 8693) → delegated MCP calls
+     → POST /chat to ping-store-agent
+     → agent performs RFC 8693 token exchange → delegated MCP calls
 ```
-
-The access token authorizes the agent to act on behalf of the user. The agent performs token exchange and calls Stripe MCP tools through the regional load balancer.
 
 ## Project Structure
 
 ```
 src/
-├── App.tsx                      # Auth routing (LoginScreen ↔ ChatScreen)
-├── auth/oidc.ts                 # PKCE auth code flow against PingOne AIC
-├── api/agent.ts                 # Agent backend API client
+├── App.tsx                  # Auth routing (LoginScreen ↔ ChatScreen)
+├── auth/oidc.ts             # PKCE auth code flow against PingOne AIC
+├── api/agent.ts             # Agent backend API client
 ├── components/
-│   ├── LoginScreen.tsx          # Sign-in page
-│   └── ChatScreen.tsx           # Chat interface
-├── index.css                    # Tailwind config + Ping theme tokens
-└── main.tsx                     # React entry point
+│   ├── LoginScreen.tsx      # Sign-in page
+│   └── ChatScreen.tsx       # Chat interface
+├── index.css                # Tailwind + Ping theme tokens
+└── main.tsx                 # React entry point
 ```
 
 ## Environment Variables
 
-Copy `.env.sample` to `.env` and fill in values. These are baked in at build time by Vite.
+Baked in at build time by Vite.
 
-| Variable | Description |
-|---|---|
-| `VITE_AIC_ISSUER` | PingOne AIC OAuth2 issuer URL |
-| `VITE_CLIENT_ID` | OIDC client ID (public client, PKCE) |
-| `VITE_REDIRECT_URI` | OAuth callback URL (e.g. `https://ping-store-chat-app.com/callback`) |
-| `VITE_SCOPES` | OAuth scopes (default: `openid profile email stripe_mcp:invoke`) |
-| `VITE_PING_STORE_AGENT_URL` | Agent backend URL (e.g. `https://ping-store-agent.com`) |
+```
+VITE_AIC_ISSUER=             # PingOne AIC OAuth2 issuer URL
+VITE_CLIENT_ID=              # OIDC client ID (public client, PKCE)
+VITE_REDIRECT_URI=           # OAuth callback URL
+VITE_SCOPES=                 # OAuth scopes (e.g. openid profile email stripe_mcp:invoke)
+VITE_PING_STORE_AGENT_URL=   # Agent backend URL
+```
 
-## Deployment
+## Deploy
 
 ```bash
 cp .env.sample .env   # fill in values
-./deploy.sh
+npm install && npm run build
+bash deploy.sh
 ```
 
-`deploy.sh` runs `npm ci`, `npm run build`, then rsyncs the built `dist/` folder to the configured EC2 host over SSH. Update the `EC2_HOST`, `EC2_USER`, and `REMOTE_DIR` variables at the top of the script for your environment.
+`deploy.sh` builds and rsyncs `dist/` to the configured EC2 host over SSH.
+Update `EC2_HOST`, `EC2_USER`, and `REMOTE_DIR` at the top of the script for
+your environment.

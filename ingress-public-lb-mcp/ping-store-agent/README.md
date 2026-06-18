@@ -1,44 +1,58 @@
-# Ping Store Agent
+# ping-store-agent
 
-Express backend that acts as a **delegated agent** — receives a user's access token, performs [RFC 8693 token exchange](https://datatracker.ietf.org/doc/html/rfc8693), then uses a Strands AI agent to invoke Stripe MCP tools through the regional load balancer on the user's behalf.
+TypeScript/Express backend that acts as a **delegated agent**: receives a
+user's AIC access token, performs RFC 8693 token exchange to obtain a
+delegated token, then runs a Strands AI agent that invokes Stripe MCP tools
+through the regional load balancer on the user's behalf.
 
 ## Token Flow
 
-**Inbound Auth**: `ping-chat-ui-storefront` → subject token (from auth code grant) → `ping-store-agent`  
-**Outbound Auth**: `ping-store-agent` → delegated token (from token exchange grant) → Regional Load Balancer → `stripe-mcp`
+```
+ping-chat-ui-storefront
+  → POST /chat  +  Authorization: Bearer <user_token>
+
+ping-store-agent
+  1. Validate subject token (JWT, AIC JWKS, may_act claim)
+  2. RFC 8693 token exchange → delegated token (sub=user, act.sub=agent)
+  3. Strands agent invokes MCP tools via load balancer with delegated token
+```
 
 ## Project Structure
 
 ```
 src/
-├── main.ts     # Entry point — Express server, routes (POST /chat, GET /health)
+├── main.ts     # Express server, POST /chat and GET /health routes
 ├── auth.ts     # JWT validation (jose), OIDC discovery, RFC 8693 token exchange
-├── agent.ts    # Strands agent + MCP client creation, session management
-├── config.ts   # Environment variable loading and LLM/system prompt config
-└── util.ts     # Shared types (TokenExchangeResult, ChatRequest, HttpError) and helpers
+├── agent.ts    # Strands agent + MCP client creation
+├── config.ts   # Environment config and system prompt
+└── util.ts     # Shared types and helpers
 ```
 
 ## Environment Variables
 
-Copy `.env.sample` to `.env` and fill in values.
-
-| Variable | Description |
-|---|---|
-| `LB_URL` | Regional load balancer URL (e.g. `https://your-mcp-lb.com`) |
-| `CORS_ORIGIN_CHAT_UI_STOREFRONT` | Allowed CORS origin for the chat UI (e.g. `https://ping-store-chat-app.com`) |
-| `PINGONE_AIC_ISSUER` | PingOne AIC issuer URL (used for OIDC discovery, JWKS, and token endpoint) |
-| `AGENT_PORT` | Server port (e.g. `3000`) |
-| `AGENT_CLIENT_ID` | This agent's OAuth client ID (also used as expected token audience) |
-| `AGENT_CLIENT_SECRET` | This agent's OAuth client secret (for token exchange) |
-| `AGENT_REQUIRED_SCOPES` | Space-separated scopes required on the subject token (e.g. `stripe_mcp:invoke email`) |
-| `OPENAI_MODEL` | OpenAI model ID (e.g. `gpt-4o`) |
-| `OPENAI_API_KEY` | OpenAI API key for the LLM |
-
-## Deployment
-
-```bash
-cp .env.sample .env   # fill in values
-docker build -t ping-store-agent .
+```
+LB_URL=                          # Regional load balancer URL
+CORS_ORIGIN_CHAT_UI_STOREFRONT=  # Allowed CORS origin for the chat UI
+PINGONE_AIC_ISSUER=              # AIC issuer URL (OIDC discovery, JWKS, token endpoint)
+AGENT_PORT=3000
+AGENT_CLIENT_ID=                 # This agent's OAuth client ID
+AGENT_CLIENT_SECRET=             # This agent's OAuth client secret
+AGENT_REQUIRED_SCOPES=           # Scopes required on the subject token
+OPENAI_MODEL=gpt-4o
+OPENAI_API_KEY=
 ```
 
-Deploy the built image to Cloud Run or any container runtime that can reach the load balancer and PingOne AIC. The service must be publicly reachable so `ping-chat-ui-storefront` can call `/chat`.
+## Local Development
+
+```bash
+cp .env.sample .env
+npm install
+npm run dev
+```
+
+## Docker
+
+```bash
+docker build -t ping-store-agent .
+docker run -p 3000:3000 --env-file .env ping-store-agent
+```

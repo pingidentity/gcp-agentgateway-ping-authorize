@@ -1,53 +1,60 @@
-# ping-authz-shim
+# lb-ping-authz-shim
 
-gRPC service implementing Envoy's [ext_proc](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_proc_filter) protocol. The regional load balancer intercepts every inbound request and forwards it here for an authorization decision from [PingAuthorize](https://docs.pingidentity.com/pingauthorize/11.0/pingauthorize_policy_administration_guide/paz_policy_management.html) before the request reaches the downstream MCP server.
+Go gRPC service implementing Envoy's `ext_proc` protocol. The regional load
+balancer calls this service on every inbound `/mcp` request; the shim
+extracts policy attributes from the request and consults PingAuthorize for
+an allow/deny decision before the request reaches `lb-stripe-mcp`.
 
-```
-AI Agent → Regional Load Balancer → ping-authz-shim → PingAuthorize → allow / deny
-```
+Deployed as Cloud Run service `lb-ping-authz-shim` (internal ingress, HTTP/2).
 
 ## Request Phases
 
-The shim intercepts requests in two phases:
+**Phase 1 — Request headers:** fast-path decisions: passthrough for
+`/.well-known/*`, 404 for unknown paths, 401 for missing bearer token.
+Authenticated `/mcp` requests proceed to phase 2.
 
-1. **RequestHeaders** — fast-path decisions: passthrough for `/.well-known/*`, 401 for missing tokens, 404 for unknown paths. Authenticated `/mcp` requests proceed to phase 2.
-2. **RequestBody** — parses the MCP JSON-RPC payload to extract tool name and arguments (e.g. product ID, purchase amount), then calls PingAuthorize with the full attribute set for a policy decision.
+**Phase 2 — Request body:** parses the MCP JSON-RPC body, extracts tool
+name and arguments, and calls PingAuthorize with the full attribute set.
 
-## Configuration
+## Policy Attributes
 
-| Variable | Description |
-|---|---|
-| `SHIM_SERVER_PORT` | gRPC server port (set to `8080` for Cloud Run) |
-| `PING_AUTHORIZE_URL` | PingAuthorize governance engine endpoint |
-| `MCP_SERVER_URL` | Downstream MCP server URL (used in `WWW-Authenticate` for OAuth discovery) |
-| `MCP_REQUIRED_SCOPES` | Space-separated scopes advertised in `WWW-Authenticate` headers |
-| `PING_AUTHORIZE_SKIP_TLS_VERIFY` | Set to `true` to disable TLS cert verification for PingAuthorize calls (dev only) |
+```json
+{
+  "attributes": {
+    "access_token": "<delegated bearer token>",
+    ":path": "/mcp",
+    ":method": "POST",
+    "mcp_method": "tools/call",
+    "mcp_tool_name": "create_stripe_payment_intent",
+    "mcp_product_id": "prod_abc123",
+    "mcp_quantity": "1",
+    "mcp_total_price": "29.99",
+    "mcp_currency": "usd"
+  }
+}
+```
 
-## Deployment
+## Environment Variables
 
-Deployed to Cloud Run via the Cloud Build pipeline at [`../deploy/gcp/cloudbuild.ping-authz-shim.yaml`](../deploy/gcp/cloudbuild.ping-authz-shim.yaml).
+```
+SHIM_SERVER_PORT=8080
+PING_AUTHORIZE_URL=               # PingAuthorize governance engine endpoint
+MCP_SERVER_URL=                   # Load balancer URL (used in WWW-Authenticate)
+PING_AUTHORIZE_SKIP_TLS_VERIFY=false
+MCP_REQUIRED_SCOPES=openid profile email stripe_mcp:invoke
+```
 
-**Trigger from repo root:**
+## Local Development
+
+```bash
+cp .env.sample .env
+export $(cat .env | xargs)
+go run .
+```
+
+## Deploy
 
 ```bash
 gcloud builds submit \
-  --config ingress-public-lb-mcp/deploy/gcp/cloudbuild.ping-authz-shim.yaml \
-  --substitutions \
-    _PING_AUTHORIZE_URL=https://your-ping-authorize.com/governance-engine,\
-    _MCP_SERVER_URL=https://your-mcp-lb.com,\
-    _MCP_REQUIRED_SCOPES="openid profile email stripe_mcp:invoke"
+  --config ingress-public-lb-mcp/ping-authz-shim/cloudbuild.yaml .
 ```
-
-The pipeline builds the Docker image, pushes it to Artifact Registry, and deploys to Cloud Run with `--ingress internal-and-cloud-load-balancing` and `--use-http2` (required for gRPC).
-
-Copy `.env.sample` to `.env` and fill in values for local development.
-
-## Files
-
-| File | Responsibility |
-|---|---|
-| `main.go` | Entrypoint — loads config, wires gRPC server, starts listener |
-| `extproc_handler.go` | Stream handler, header/body evaluation, policy attribute building |
-| `extproc_responses.go` | Envoy response builders (allow, reject, passthrough) |
-| `ping_authorize_client.go` | HTTP client for PingAuthorize governance engine decisions |
-| `util.go` | Shared helpers — token extraction, header parsing, TLS config |

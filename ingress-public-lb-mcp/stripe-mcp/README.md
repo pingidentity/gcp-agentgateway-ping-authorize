@@ -1,64 +1,60 @@
-# Stripe MCP Server
+# lb-stripe-mcp
 
-MCP server that exposes Stripe tools for listing products, looking up customers, and processing payments. Runs behind the regional load balancer where the `ping-authz-shim` enforces authorization on every request before it reaches this server.
+Go MCP server exposing Stripe tools for product browsing and payment
+processing. Deployed as Cloud Run service `lb-stripe-mcp` (internal ingress);
+only reachable via the regional load balancer after `lb-ping-authz-shim` has
+permitted the request.
 
-```
-MCP Client → Regional Load Balancer → ping-authz-shim (allow/deny) → stripe-mcp
-```
-
-## OAuth Discovery
-
-OAuth discovery endpoints (`/.well-known/`) are passed through unauthenticated so MCP clients can bootstrap the authorization flow. These are only needed by **attended agents** (e.g. Claude Desktop via `mcp-remote`) that must discover the authorization server to initiate a user login. **Delegated agents** (e.g. `ping-store-agent`) already know the AIC token endpoint and perform RFC 8693 token exchange directly — they never hit these endpoints.
-
-## Tools
+## MCP Tools
 
 | Tool | Description | Parameters |
 |---|---|---|
-| `list_stripe_products` | List all active products from the Stripe catalog, including prices | — |
-| `get_stripe_product` | Get details for a specific Stripe product | `product_id` (required) |
-| `get_stripe_customer` | Look up the authenticated user's Stripe customer record and saved payment method | — (uses auth context) |
-| `create_stripe_payment_intent` | Purchase a product using the authenticated user's saved payment method | `product_id` (required), `quantity` (optional) |
+| `list_stripe_products` | List all active products with prices | — |
+| `get_stripe_product` | Get details for a specific product | `product_id`* |
+| `get_stripe_customer` | Look up the authenticated user's Stripe customer and saved payment method | — |
+| `create_stripe_payment_intent` | Charge the user's saved card | `product_id`*, `quantity`, `total_price`*, `currency`* |
 
-## Configuration
+\* required
 
-| Variable | Description |
-|---|---|
-| `STRIPE_SECRET_KEY` | Stripe API secret key |
-| `PINGONE_AIC_ISSUER` | PingOne AIC OAuth 2.0 issuer URL (used for userinfo and discovery metadata) |
-| `MCP_REQUIRED_SCOPES` | Space-separated OAuth scopes required by this MCP server (e.g. `email stripe_mcp:invoke`) |
-| `MCP_SERVER_PORT` | Port to listen on (set to `8080` for Cloud Run) |
+## Authentication
 
-## Deployment
+Caller identity is resolved by calling AIC's `/userinfo` endpoint with the
+bearer token to get the user's email, then looking up the matching Stripe
+customer. The load balancer and `lb-ping-authz-shim` validate the token
+before the request reaches this server.
 
-Deployed to Cloud Run via the Cloud Build pipeline at [`../deploy/gcp/cloudbuild.stripe-mcp.yaml`](../deploy/gcp/cloudbuild.stripe-mcp.yaml).
+## OAuth Discovery
 
-First, store the Stripe secret key in GCP Secret Manager:
+Serves `/.well-known/oauth-protected-resource` (RFC 9728) and
+`/.well-known/oauth-authorization-server` (RFC 8414). These endpoints are
+passed through unauthenticated for MCP clients that need to discover the
+authorization server (e.g. Claude Desktop via `mcp-remote`).
 
-```bash
-echo -n "sk_live_..." | gcloud secrets create stripe-secret-key --data-file=-
+## Environment Variables
+
+```
+MCP_SERVER_PORT=8080
+STRIPE_SECRET_KEY=               # Stripe API secret key (injected from Secret Manager)
+PINGONE_AIC_ISSUER=              # AIC issuer URL (for /userinfo and discovery metadata)
+MCP_REQUIRED_SCOPES=stripe_mcp:invoke email
 ```
 
-**Trigger from repo root:**
+## Local Development
+
+```bash
+cp .env.sample .env
+export $(cat .env | xargs)
+go run .
+```
+
+## Deploy
+
+Store the Stripe key in Secret Manager first:
+```bash
+printf "sk_live_..." | gcloud secrets create stripe-secret-key --data-file=-
+```
 
 ```bash
 gcloud builds submit \
-  --config ingress-public-lb-mcp/deploy/gcp/cloudbuild.stripe-mcp.yaml \
-  --substitutions \
-    _PINGONE_AIC_ISSUER=https://your-aic-issuer,\
-    _MCP_REQUIRED_SCOPES="stripe_mcp:invoke email"
+  --config ingress-public-lb-mcp/stripe-mcp/cloudbuild.yaml .
 ```
-
-The pipeline builds the Docker image, pushes it to Artifact Registry, and deploys to Cloud Run with `--ingress internal-and-cloud-load-balancing`. The Stripe secret is injected from Secret Manager at deploy time.
-
-Copy `.env.sample` to `.env` and fill in values for local development.
-
-## Files
-
-| File | Responsibility |
-|---|---|
-| `main.go` | Entrypoint — wires config, MCP server, and HTTP listener |
-| `http_routes.go` | Request router, bearer token auth, caller identity injection |
-| `oauth_discovery.go` | OAuth/protected-resource discovery metadata (attended agents only) |
-| `mcp_tools.go` | MCP tool definitions (list/get products, customer lookup, payments) |
-| `stripe_client.go` | Stripe API client functions |
-| `util.go` | Shared helpers — env loading, JSON conversion, caller identity resolution |
