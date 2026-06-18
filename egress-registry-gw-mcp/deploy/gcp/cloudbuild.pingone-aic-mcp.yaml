@@ -12,7 +12,7 @@ substitutions:
   _GCP_REGION: us-central1
   _GCP_PROJECT_ID: tech-partner-ping
   _PINGONE_AIC_MCP_REPO: pingone-aic-mcp-repo
-  _SERVICE_NAME: pingone-aic-mcp
+  _SERVICE_NAME: gw-pingone-aic-mcp
   _REGISTRY_SERVICE_NAME: pingone-aic-mcp-server
   _IMAGE_TAG: latest
   _AIC_BASE_URL: https://openam-tntp-aiagents.forgeblocks.com

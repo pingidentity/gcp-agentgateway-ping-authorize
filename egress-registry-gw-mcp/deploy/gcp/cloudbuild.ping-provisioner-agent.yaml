@@ -16,13 +16,13 @@ substitutions:
   _GCP_REGION: us-central1
   _GCP_PROJECT_ID: tech-partner-ping
   _PROVISIONER_REPO: ping-provisioner-repo
-  _SERVICE_NAME: ping-provisioner-agent
+  _SERVICE_NAME: gw-ping-provisioner-agent
   _IMAGE_TAG: latest
   _AGENT_PORT: "3000"
   _GEMINI_MODEL: gemini-2.5-flash
   _GOOGLE_CLOUD_LOCATION: us-central1
-  _PINGONE_AIC_MCP_URL: https://pingone-aic-mcp-uu2pkgxfka-uc.a.run.app/mcp
-  _ENTRA_MCP_URL: https://entra-mcp-uu2pkgxfka-uc.a.run.app/mcp
+  _PINGONE_AIC_MCP_URL: https://gw-pingone-aic-mcp-uu2pkgxfka-uc.a.run.app/mcp
+  _ENTRA_MCP_URL: https://gw-entra-mcp-uu2pkgxfka-uc.a.run.app/mcp
 
 steps:
   # Build the Docker image.

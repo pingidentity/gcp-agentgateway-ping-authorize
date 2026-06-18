@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # setup-agent-registry.sh
 #
-# Registers the ping-provisioner-agent, pingone-aic-mcp-server, and
-# entra-mcp-server in GCP Agent Registry, then creates the Agent Gateway
+# Registers the gw-ping-provisioner-agent, gw-pingone-aic-mcp-server, and
+# gw-entra-mcp-server in GCP Agent Registry, then creates the Agent Gateway
 # (egress) and attaches the PingAuthorize authz extension.
 #
 # Prerequisites:
@@ -35,71 +35,71 @@ gcloud services enable \
 # ── Resolve Cloud Run service URLs ──────────────────────────────────────────
 echo "==> Resolving Cloud Run service URLs"
 
-PROVISIONER_URL=$(gcloud run services describe ping-provisioner-agent \
+PROVISIONER_URL=$(gcloud run services describe gw-ping-provisioner-agent \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --format='value(status.url)')
 
-PINGONE_MCP_URL=$(gcloud run services describe pingone-aic-mcp \
+PINGONE_MCP_URL=$(gcloud run services describe gw-pingone-aic-mcp \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --format='value(status.url)')
 
-ENTRA_MCP_URL=$(gcloud run services describe entra-mcp \
+ENTRA_MCP_URL=$(gcloud run services describe gw-entra-mcp \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --format='value(status.url)')
 
-AUTHZ_SHIM_URL=$(gcloud run services describe ping-authz-shim-egress \
+AUTHZ_SHIM_URL=$(gcloud run services describe gw-ping-authz-shim \
   --region="${REGION}" --project="${PROJECT_ID}" \
   --format='value(status.url)')
 
 # Strip https:// to get the bare FQDN for the authz extension
 AUTHZ_SHIM_FQDN="${AUTHZ_SHIM_URL#https://}"
 
-echo "  ping-provisioner-agent : ${PROVISIONER_URL}"
-echo "  pingone-aic-mcp        : ${PINGONE_MCP_URL}"
-echo "  entra-mcp              : ${ENTRA_MCP_URL}"
+echo "  gw-ping-provisioner-agent : ${PROVISIONER_URL}"
+echo "  gw-pingone-aic-mcp        : ${PINGONE_MCP_URL}"
+echo "  gw-entra-mcp              : ${ENTRA_MCP_URL}"
 echo "  ping-authz-shim        : ${AUTHZ_SHIM_URL} (FQDN: ${AUTHZ_SHIM_FQDN})"
 
-# ── Register ping-provisioner-agent ─────────────────────────────────────────
-echo "==> Registering ping-provisioner-agent in Agent Registry"
-gcloud alpha agent-registry services create ping-provisioner-agent \
+# ── Register gw-ping-provisioner-agent ─────────────────────────────────────────
+echo "==> Registering gw-ping-provisioner-agent in Agent Registry"
+gcloud alpha agent-registry services create gw-ping-provisioner-agent \
   --project="${PROJECT_ID}" \
   --location="${REGION}" \
   --display-name="Ping Provisioner Agent" \
   --agent-spec-type=no-spec \
   --interfaces="url=${PROVISIONER_URL},protocolBinding=HTTP_JSON" \
-  || gcloud alpha agent-registry services update ping-provisioner-agent \
+  || gcloud alpha agent-registry services update gw-ping-provisioner-agent \
        --project="${PROJECT_ID}" \
        --location="${REGION}" \
        --interfaces="url=${PROVISIONER_URL},protocolBinding=HTTP_JSON"
 
-# ── Register pingone-aic-mcp-server ─────────────────────────────────────────
-echo "==> Registering pingone-aic-mcp-server in Agent Registry"
-gcloud alpha agent-registry services create pingone-aic-mcp-server \
+# ── Register gw-pingone-aic-mcp-server ─────────────────────────────────────────
+echo "==> Registering gw-pingone-aic-mcp-server in Agent Registry"
+gcloud alpha agent-registry services create gw-pingone-aic-mcp-server \
   --project="${PROJECT_ID}" \
   --location="${REGION}" \
   --display-name="PingOne AIC Provisioner MCP Server" \
   --mcp-server-spec-type=tool-spec \
-  --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.pingone-aic-mcp.json" \
+  --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.gw-pingone-aic-mcp.json" \
   --interfaces="url=${PINGONE_MCP_URL},protocolBinding=JSONRPC" \
-  || gcloud alpha agent-registry services update pingone-aic-mcp-server \
+  || gcloud alpha agent-registry services update gw-pingone-aic-mcp-server \
        --project="${PROJECT_ID}" \
        --location="${REGION}" \
-       --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.pingone-aic-mcp.json" \
+       --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.gw-pingone-aic-mcp.json" \
        --interfaces="url=${PINGONE_MCP_URL},protocolBinding=JSONRPC"
 
-# ── Register entra-mcp-server ───────────────────────────────────────────────
-echo "==> Registering entra-mcp-server in Agent Registry"
-gcloud alpha agent-registry services create entra-mcp-server \
+# ── Register gw-entra-mcp-server ───────────────────────────────────────────────
+echo "==> Registering gw-entra-mcp-server in Agent Registry"
+gcloud alpha agent-registry services create gw-entra-mcp-server \
   --project="${PROJECT_ID}" \
   --location="${REGION}" \
   --display-name="Microsoft Entra Provisioner MCP Server" \
   --mcp-server-spec-type=tool-spec \
-  --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.entra-mcp.json" \
+  --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.gw-entra-mcp.json" \
   --interfaces="url=${ENTRA_MCP_URL},protocolBinding=JSONRPC" \
-  || gcloud alpha agent-registry services update entra-mcp-server \
+  || gcloud alpha agent-registry services update gw-entra-mcp-server \
        --project="${PROJECT_ID}" \
        --location="${REGION}" \
-       --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.entra-mcp.json" \
+       --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.gw-entra-mcp.json" \
        --interfaces="url=${ENTRA_MCP_URL},protocolBinding=JSONRPC"
 
 # ── Verify Agent Registry entries ───────────────────────────────────────────
@@ -157,19 +157,19 @@ GATEWAY_URL=$(gcloud alpha network-services agent-gateways describe ping-authz-a
 
 if [[ -n "${GATEWAY_URL}" ]]; then
   echo "  Agent Gateway URL: ${GATEWAY_URL}"
-  echo "==> Updating ping-provisioner-agent with AGENT_GATEWAY_URL"
-  gcloud run services update ping-provisioner-agent \
+  echo "==> Updating gw-ping-provisioner-agent with AGENT_GATEWAY_URL"
+  gcloud run services update gw-ping-provisioner-agent \
     --region="${REGION}" \
     --project="${PROJECT_ID}" \
     --update-env-vars="AGENT_GATEWAY_URL=${GATEWAY_URL}"
-  echo "  ping-provisioner-agent updated: AGENT_GATEWAY_URL=${GATEWAY_URL}"
+  echo "  gw-ping-provisioner-agent updated: AGENT_GATEWAY_URL=${GATEWAY_URL}"
 else
   echo "  WARNING: Could not auto-resolve Agent Gateway URL."
   echo "  Run the following after the gateway becomes active:"
   echo ""
   echo "    GATEWAY_URL=\$(gcloud alpha network-services agent-gateways describe ping-authz-agent-gateway \\"
   echo "      --location=${REGION} --project=${PROJECT_ID} --format='value(addresses[0].value)')"
-  echo "    gcloud run services update ping-provisioner-agent \\"
+  echo "    gcloud run services update gw-ping-provisioner-agent \\"
   echo "      --region=${REGION} --project=${PROJECT_ID} \\"
   echo "      --update-env-vars=\"AGENT_GATEWAY_URL=\${GATEWAY_URL}\""
 fi

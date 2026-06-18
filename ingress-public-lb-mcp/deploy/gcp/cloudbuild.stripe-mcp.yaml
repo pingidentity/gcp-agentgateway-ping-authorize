@@ -12,7 +12,7 @@ substitutions:
   _GCP_REGION: us-central1
   _GCP_PROJECT_ID: tech-partner-ping
   _STRIPE_MCP_REPO: stripe-mcp-repo
-  _SERVICE_NAME: stripe-mcp
+  _SERVICE_NAME: lb-stripe-mcp
   _IMAGE_TAG: latest
   _PINGONE_AIC_ISSUER: https://openam-tntp-aiagents.forgeblocks.com:443/am/oauth2/alpha
   _MCP_REQUIRED_SCOPES: "stripe_mcp:invoke email"

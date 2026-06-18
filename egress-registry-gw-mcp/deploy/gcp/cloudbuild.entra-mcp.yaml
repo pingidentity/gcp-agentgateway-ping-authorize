@@ -12,7 +12,7 @@ substitutions:
   _GCP_REGION: us-central1
   _GCP_PROJECT_ID: tech-partner-ping
   _ENTRA_MCP_REPO: entra-mcp-repo
-  _SERVICE_NAME: entra-mcp
+  _SERVICE_NAME: gw-entra-mcp
   _REGISTRY_SERVICE_NAME: entra-mcp-server
   _IMAGE_TAG: latest
   _MCP_REQUIRED_SCOPES: "pingone:provisioning"

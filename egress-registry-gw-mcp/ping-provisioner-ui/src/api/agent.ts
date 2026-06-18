@@ -5,7 +5,7 @@ const WIF_PROVIDER = import.meta.env.VITE_WIF_PROVIDER as string;
 // Service account to impersonate via WIF — optional, falls back to direct federation
 const WIF_SERVICE_ACCOUNT = import.meta.env.VITE_WIF_SERVICE_ACCOUNT as string | undefined;
 
-const VERTEX_BASE = `https://${GCP_REGION}-aiplatform.googleapis.com/v1`;
+const VERTEX_BASE = `https://${GCP_REGION}-aiplatform.googleapis.com/v1beta1`;
 const ENGINE_PATH = `projects/${GCP_PROJECT}/locations/${GCP_REGION}/reasoningEngines/${REASONING_ENGINE_ID}`;
 
 // Exchange AIC bearer token for a Google access token via Workload Identity Federation.
