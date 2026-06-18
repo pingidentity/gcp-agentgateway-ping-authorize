@@ -24,6 +24,7 @@ set -euo pipefail
 PROJECT_ID="${PROJECT_ID:-tech-partner-ping}"
 REGION="${REGION:-us-central1}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 echo "==> Enabling required APIs"
 gcloud services enable \
@@ -79,12 +80,12 @@ gcloud alpha agent-registry services create gw-pingone-aic-mcp-server \
   --location="${REGION}" \
   --display-name="PingOne AIC Provisioner MCP Server" \
   --mcp-server-spec-type=tool-spec \
-  --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.gw-pingone-aic-mcp.json" \
+  --mcp-server-spec-content="${REPO_DIR}/egress-registry-gw-mcp/pingone-aic-mcp/toolspec.json" \
   --interfaces="url=${PINGONE_MCP_URL},protocolBinding=JSONRPC" \
   || gcloud alpha agent-registry services update gw-pingone-aic-mcp-server \
        --project="${PROJECT_ID}" \
        --location="${REGION}" \
-       --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.gw-pingone-aic-mcp.json" \
+       --mcp-server-spec-content="${REPO_DIR}/egress-registry-gw-mcp/pingone-aic-mcp/toolspec.json" \
        --interfaces="url=${PINGONE_MCP_URL},protocolBinding=JSONRPC"
 
 # ── Register gw-entra-mcp-server ───────────────────────────────────────────────
@@ -94,12 +95,12 @@ gcloud alpha agent-registry services create gw-entra-mcp-server \
   --location="${REGION}" \
   --display-name="Microsoft Entra Provisioner MCP Server" \
   --mcp-server-spec-type=tool-spec \
-  --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.gw-entra-mcp.json" \
+  --mcp-server-spec-content="${REPO_DIR}/egress-registry-gw-mcp/entra-mcp/toolspec.json" \
   --interfaces="url=${ENTRA_MCP_URL},protocolBinding=JSONRPC" \
   || gcloud alpha agent-registry services update gw-entra-mcp-server \
        --project="${PROJECT_ID}" \
        --location="${REGION}" \
-       --mcp-server-spec-content="${SCRIPT_DIR}/toolspec.gw-entra-mcp.json" \
+       --mcp-server-spec-content="${REPO_DIR}/egress-registry-gw-mcp/entra-mcp/toolspec.json" \
        --interfaces="url=${ENTRA_MCP_URL},protocolBinding=JSONRPC"
 
 # ── Verify Agent Registry entries ───────────────────────────────────────────

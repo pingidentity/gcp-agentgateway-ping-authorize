@@ -51,4 +51,4 @@ gcloud builds submit \
   --config egress-registry-gw-mcp/ping-provisioner-agent/cloudbuild.yaml .
 ```
 
-For Agent Runtime deployment (production), see `deploy/gcp/deploy_agent.py`.
+For Agent Runtime deployment (production), see `deploy_agent.py` in this folder.

@@ -70,12 +70,12 @@ steps:
           --location=${_GCP_REGION} \
           --display-name="Microsoft Entra Provisioner MCP Server" \
           --mcp-server-spec-type=tool-spec \
-          --mcp-server-spec-content=egress-registry-gw-mcp/deploy/gcp/toolspec.entra-mcp.json \
+          --mcp-server-spec-content=egress-registry-gw-mcp/entra-mcp/toolspec.json \
           --interfaces="url=$$SERVICE_URL,protocolBinding=JSONRPC" \
         || gcloud alpha agent-registry services update ${_REGISTRY_SERVICE_NAME} \
              --project=${_GCP_PROJECT_ID} \
              --location=${_GCP_REGION} \
-             --mcp-server-spec-content=egress-registry-gw-mcp/deploy/gcp/toolspec.entra-mcp.json \
+             --mcp-server-spec-content=egress-registry-gw-mcp/entra-mcp/toolspec.json \
              --interfaces="url=$$SERVICE_URL,protocolBinding=JSONRPC"
 
 options:

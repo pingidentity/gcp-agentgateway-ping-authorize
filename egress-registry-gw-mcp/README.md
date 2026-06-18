@@ -131,7 +131,7 @@ gcloud builds submit --config egress-registry-gw-mcp/entra-mcp/cloudbuild.yaml .
 
 ```bash
 PROJECT_ID=YOUR_PROJECT REGION=us-central1 \
-  bash egress-registry-gw-mcp/deploy/gcp/setup-agent-registry.sh
+  bash egress-registry-gw-mcp/gateway/setup-agent-registry.sh
 ```
 
 This script resolves Cloud Run URLs, registers services in Agent Registry,
@@ -142,7 +142,7 @@ extension pointing at `gw-ping-authz-shim`, and attaches the authz policy.
 
 ```bash
 cd egress-registry-gw-mcp
-python deploy/gcp/deploy_agent.py \
+python ping-provisioner-agent/deploy_agent.py \
   --project YOUR_PROJECT \
   --region us-central1 \
   --network-attachment projects/YOUR_PROJECT/regions/us-central1/networkAttachments/agent-gateway-attachment \
@@ -154,7 +154,7 @@ python deploy/gcp/deploy_agent.py \
 After deploy, grant the agent's AGENT_IDENTITY egress IAM:
 
 ```bash
-python deploy/gcp/grant_egressor_iam.py \
+python ping-provisioner-agent/grant_egressor_iam.py \
   --project YOUR_PROJECT \
   --region us-central1 \
   --agent-resource projects/YOUR_PROJECT/locations/us-central1/reasoningEngines/RESOURCE_ID
@@ -203,22 +203,22 @@ Example policies:
 ```
 egress-registry-gw-mcp/
 ├── README.md
-├── ping-provisioner-agent/     # ADK Python + FastAPI (Cloud Run version)
-│   └── cloudbuild.yaml
+├── ping-provisioner-agent/     # ADK Python agent (Cloud Run version)
+│   ├── cloudbuild.yaml         # Cloud Build pipeline
+│   ├── deploy_agent.py         # Deploy to Vertex AI Agent Runtime
+│   └── grant_egressor_iam.py   # Grant AGENT_IDENTITY egress IAM
 ├── ping-provisioner-ui/        # React UI — WIF + Vertex AI Agent Runtime
 ├── pingone-aic-mcp/            # Go MCP → PingOne AIC REST API
-│   └── cloudbuild.yaml
+│   ├── cloudbuild.yaml
+│   └── toolspec.json           # Agent Registry tool definitions
 ├── entra-mcp/                  # Go MCP → Microsoft Graph API
-│   └── cloudbuild.yaml
+│   ├── cloudbuild.yaml
+│   └── toolspec.json
 ├── ping-authz-shim/            # Go ext_proc shim → PingAuthorize
 │   └── cloudbuild.yaml
-└── deploy/gcp/                 # Infra-level deploy scripts and resource configs
-    ├── deploy_agent.py                  # Deploy agent to Vertex AI Agent Runtime
-    ├── grant_egressor_iam.py            # Grant AGENT_IDENTITY egress IAM
-    ├── setup-agent-registry.sh         # Agent Registry + Agent Gateway setup
-    ├── agent-gateway-egress.yaml        # Agent Gateway (egress) resource config
-    ├── authz-extension.yaml             # CONTENT_AUTHZ ext_proc extension config
-    ├── authz-policy.yaml                # Authz policy attaching shim to gateway
-    ├── toolspec.pingone-aic-mcp.json    # Agent Registry tool definitions
-    └── toolspec.entra-mcp.json
+└── gateway/                    # Agent Gateway + authz setup
+    ├── setup-agent-registry.sh # Agent Registry + Gateway one-time setup
+    ├── agent-gateway-egress.yaml
+    ├── authz-extension.yaml
+    └── authz-policy.yaml
 ```
