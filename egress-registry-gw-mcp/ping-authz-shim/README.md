@@ -1,50 +1,30 @@
-# ping-authz-shim (egress-registry-gw-mcp)
+# gw-ping-authz-shim
 
-Envoy `ext_proc` authorization shim for the identity provisioning Agent Gateway.
-Modified from the UC1 shim (`ingress-public-lb-mcp/ping-authz-shim`) with two
-targeted changes for the provisioning use case.
+Envoy `ext_proc` gRPC service for the identity provisioning Agent Gateway
+(`ping-authz-agent-gateway`). On every MCP `tools/call`, the Agent Gateway
+calls this shim synchronously; the shim extracts policy attributes from the
+request body and consults PingAuthorize before allowing or denying the call.
 
-## Changes from UC1
+Deployed as Cloud Run service `gw-ping-authz-shim` (internal ingress, HTTP/2).
 
-### 1. Accept `/mcp/*` paths
+## Differences from `ingress-public-lb-mcp/ping-authz-shim`
 
-The UC1 shim only accepted requests to `/mcp`. This version accepts any path
-matching `/mcp/pingone`, `/mcp/entra`, or any deeper sub-path — allowing the
-internal LB to route to two different MCP backends while using a single shim.
+| | Ingress shim | This shim |
+|---|---|---|
+| Accepted paths | `/mcp` only | `/mcp`, `/mcp/*` |
+| Policy attributes | Stripe purchase fields | Identity provisioning fields |
 
-```go
-// Before (UC1)
-if path != "/mcp" { ... reject ... }
-
-// After (UC2)
-if path != "/mcp" && !strings.HasPrefix(path, "/mcp/") { ... reject ... }
-```
-
-### 2. Provisioning policy attributes
-
-The UC1 shim extracted Stripe purchase arguments (`product_id`, `quantity`,
-`total_price`, `currency`). This version extracts identity provisioning
-arguments for policy decisions:
-
-```go
-for _, key := range []string{"username", "email", "enabled"} {
-    if val, ok := rpc.Params.Arguments[key]; ok {
-        attrs["mcp_"+key] = fmt.Sprintf("%v", val)
-    }
-}
-```
-
-The `:path` header (already present) tells PingAuthorize which identity
-system is being targeted (`/mcp/pingone` vs `/mcp/entra`).
+Path routing (`/mcp/pingone` vs `/mcp/entra`) tells PingAuthorize which
+identity system is targeted without needing to inspect the tool arguments.
 
 ## Policy Attributes
 
-The full attribute map sent to PingAuthorize:
+Sent to PingAuthorize on every `tools/call`:
 
 ```json
 {
   "attributes": {
-    "access_token": "<agent bearer token>",
+    "access_token": "<delegated bearer token>",
     ":path": "/mcp/entra",
     ":method": "POST",
     "mcp_method": "tools/call",
@@ -59,17 +39,11 @@ The full attribute map sent to PingAuthorize:
 
 ```
 SHIM_SERVER_PORT=8080
-PING_AUTHORIZE_URL=          # PingAuthorize governance engine endpoint
-MCP_SERVER_URL=              # Agent Gateway URL (used in WWW-Authenticate)
+PING_AUTHORIZE_URL=               # PingAuthorize governance engine endpoint
+MCP_SERVER_URL=                   # Agent Gateway URL (used in WWW-Authenticate)
 PING_AUTHORIZE_SKIP_TLS_VERIFY=false
 MCP_REQUIRED_SCOPES=pingone:provisioning
 ```
-
-## All Other Files
-
-`extproc_responses.go`, `ping_authorize_client.go`, `util.go`, `main.go`,
-`go.mod`, and `Dockerfile` are identical to UC1. Only `extproc_handler.go`
-differs.
 
 ## Local Development
 
@@ -79,9 +53,9 @@ export $(cat .env | xargs)
 go run .
 ```
 
-## Docker
+## Deploy
 
 ```bash
-docker build -t ping-authz-shim-egress .
-docker run -p 8080:8080 --env-file .env ping-authz-shim-egress
+gcloud builds submit \
+  --config egress-registry-gw-mcp/deploy/gcp/cloudbuild.ping-authz-shim.yaml .
 ```

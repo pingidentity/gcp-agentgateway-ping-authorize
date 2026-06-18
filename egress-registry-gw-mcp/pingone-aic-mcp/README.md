@@ -1,8 +1,9 @@
-# pingone-aic-mcp
+# gw-pingone-aic-mcp
 
 Go MCP server wrapping the **PingOne AIC (ForgeRock Identity Cloud)** managed
-user REST API. Deployed behind the internal Agent Gateway; the ext_proc shim
-enforces PingAuthorize policy before each request reaches this server.
+user REST API. Deployed as Cloud Run service `gw-pingone-aic-mcp` (internal
+ingress); the Agent Gateway's ext_proc shim enforces PingAuthorize policy
+before each request reaches this server.
 
 ## MCP Tools
 
@@ -17,18 +18,16 @@ enforces PingAuthorize policy before each request reaches this server.
 
 ## Authentication
 
-The server uses its own **admin OAuth client** (client credentials, scope
-`fr:idm:*`) to authenticate to the AIC management API. Tokens are cached and
-refreshed automatically (60-second safety margin).
+Uses its own **admin OAuth client** (client credentials, `fr:idm:*`) to call
+the AIC management API. Tokens are cached and auto-refreshed.
 
-The **caller's** bearer token (from the agent) is validated by the ext_proc
-shim at the Agent Gateway — this server trusts the gateway to enforce auth.
+The caller's bearer token is validated by the ext_proc shim at the Agent
+Gateway — this server trusts the gateway to enforce auth.
 
 ## OAuth Discovery
 
 Serves `/.well-known/oauth-protected-resource` (RFC 9728) and
-`/.well-known/oauth-authorization-server` (RFC 8414) for MCP client
-bootstrapping.
+`/.well-known/oauth-authorization-server` (RFC 8414).
 
 ## Environment Variables
 
@@ -45,21 +44,19 @@ MCP_REQUIRED_SCOPES=pingone:provisioning
 
 ```bash
 cp .env.sample .env
-# Edit .env
 export $(cat .env | xargs)
 go run .
 ```
 
-## Docker
+## Deploy
 
 ```bash
-docker build -t pingone-aic-mcp .
-docker run -p 8080:8080 --env-file .env pingone-aic-mcp
+gcloud builds submit \
+  --config egress-registry-gw-mcp/deploy/gcp/cloudbuild.pingone-aic-mcp.yaml .
 ```
 
 ## AIC Admin Client Setup
 
-The admin client needs read/write access to managed identities:
+Create an OAuth 2.0 client under **Realm → Applications → Clients** with:
 - Grant type: `client_credentials`
-- Scopes: `fr:idm:*` (or `fr:idm:admin`)
-- Create under **Realm → Applications → OAuth 2.0 → Clients** in AIC console
+- Scopes: `fr:idm:*`

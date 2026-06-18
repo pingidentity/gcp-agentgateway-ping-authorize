@@ -1,11 +1,11 @@
-# entra-mcp
+# gw-entra-mcp
 
-Go MCP server wrapping the **Microsoft Graph API** for Microsoft Entra
-(Azure AD) user provisioning. Deployed behind the internal Agent Gateway;
-the ext_proc shim enforces PingAuthorize policy before each request reaches
-this server.
+Go MCP server wrapping the **Microsoft Graph API** for Microsoft Entra (Azure AD)
+user provisioning. Deployed as Cloud Run service `gw-entra-mcp` (internal ingress);
+the Agent Gateway's ext_proc shim enforces PingAuthorize policy before each request
+reaches this server.
 
-Exposes the same MCP tool interface as `pingone-aic-mcp` for a uniform
+Exposes the same MCP tool interface as `gw-pingone-aic-mcp` for a uniform
 provisioning experience across both identity systems.
 
 ## MCP Tools
@@ -21,10 +21,8 @@ provisioning experience across both identity systems.
 
 ## Authentication
 
-Uses Azure AD **client credentials** against
-`https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token` with scope
-`https://graph.microsoft.com/.default`. Tokens are cached and refreshed
-automatically.
+Uses Azure AD **client credentials** (`https://graph.microsoft.com/.default`).
+Tokens are cached and auto-refreshed.
 
 The caller's bearer token is validated by the ext_proc shim at the Agent
 Gateway — this server trusts the gateway to enforce auth.
@@ -49,23 +47,21 @@ MCP_REQUIRED_SCOPES=pingone:provisioning
 
 ```bash
 cp .env.sample .env
-# Edit .env
 export $(cat .env | xargs)
 go run .
 ```
 
-## Docker
+## Deploy
 
 ```bash
-docker build -t entra-mcp .
-docker run -p 8080:8080 --env-file .env entra-mcp
+gcloud builds submit \
+  --config egress-registry-gw-mcp/deploy/gcp/cloudbuild.entra-mcp.yaml .
 ```
 
 ## Azure App Registration Setup
 
-The app registration needs:
-- **API permissions**: `User.ReadWrite.All` (Application, Microsoft Graph)
-- **Grant type**: Client credentials (no user sign-in)
-- Grant admin consent for the directory
+Create an app registration with:
+- **API permissions**: `User.ReadWrite.All` (Application, Microsoft Graph), admin consent granted
+- **Grant type**: Client credentials
 
-Create under **Azure Portal → Entra ID → App registrations → New registration**.
+**Azure Portal → Entra ID → App registrations → New registration**
